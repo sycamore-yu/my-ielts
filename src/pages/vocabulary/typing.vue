@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { PERSONAL_CHAPTER, personalEntries } from '../../lib/personalVocabulary'
 import vocabulary from './vocabulary'
 
 const CHAPTER_KEY = 'vocabulary_typing_chapter'
-const chapters = Object.keys(vocabulary)
+const chapters = [...Object.keys(vocabulary), PERSONAL_CHAPTER]
 const selectedChapter = ref(localStorage.getItem(CHAPTER_KEY) || chapters[0])
 
 const currentWordIndex = ref(0)
@@ -13,11 +14,10 @@ const accuracy = ref(100)
 const isFinished = ref(false)
 
 const words = computed(() => {
+  if (selectedChapter.value === PERSONAL_CHAPTER)
+    return personalEntries.value.map(entry => ({ word: [entry.word], meaning: entry.meaning, example: entry.example, pos: '' }))
   const chapter = (vocabulary as any)[selectedChapter.value]
-  if (!chapter)
-    return []
-  // Flatten groups into a single list of words
-  return chapter.words.flat()
+  return chapter?.words.flat() || []
 })
 
 const currentWordData = computed(() => words.value[currentWordIndex.value])
@@ -28,7 +28,12 @@ watch(selectedChapter, (newVal) => {
   reset()
 })
 
+let advanceTimer: number | null = null
 function reset() {
+  if (advanceTimer !== null) {
+    clearTimeout(advanceTimer)
+    advanceTimer = null
+  }
   currentWordIndex.value = 0
   userInput.value = ''
   startTime.value = null
@@ -42,6 +47,17 @@ let audio = null as HTMLAudioElement | null
 function playAudio() {
   const category = selectedChapter.value
   const word = currentWord.value
+  if (!word)
+    return
+  if (category === PERSONAL_CHAPTER) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(word)
+      utterance.lang = 'en-GB'
+      window.speechSynthesis.speak(utterance)
+    }
+    return
+  }
   const audioPath = `vocabulary/audio/${category}/${word}.mp3`
   if (audio) {
     audio.pause()
@@ -49,7 +65,7 @@ function playAudio() {
   }
   audio = document.createElement('audio')
   audio.src = audioPath
-  audio.play()
+  audio.play().catch(() => {})
 }
 
 // Normalize whitespace: replace non-breaking spaces and other unicode spaces with regular space
@@ -83,8 +99,12 @@ function handleInput(e: Event) {
     wpm.value = Math.round((input.length / 5) / timeElapsed)
 
   // Check if finished
-  if (input === currentWord.value)
-    setTimeout(nextWord, 200)
+  if (input === currentWord.value && !advanceTimer) {
+    advanceTimer = window.setTimeout(() => {
+      advanceTimer = null
+      nextWord()
+    }, 200)
+  }
 }
 
 function nextWord() {
@@ -99,8 +119,11 @@ function nextWord() {
   }
 }
 
-onMounted(() => {
-  reset()
+onMounted(reset)
+onUnmounted(() => {
+  if (advanceTimer !== null)
+    clearTimeout(advanceTimer)
+  window.speechSynthesis?.cancel()
 })
 </script>
 
@@ -125,6 +148,14 @@ onMounted(() => {
         </select>
       </div>
 
+      <div v-if="selectedChapter === PERSONAL_CHAPTER" class="mb-5 text-sm text-blue-600">
+        <router-link to="/vocabulary/my" class="underline">管理我的词库（{{ personalEntries.length }} 条）</router-link>
+      </div>
+
+      <div v-if="!words.length" class="mb-5 rounded border border-dashed p-6 text-center">
+        当前词库为空。<router-link to="/vocabulary/my" class="text-blue-600 underline">添加或导入词汇</router-link>
+      </div>
+
       <!-- Stats -->
       <div class="grid grid-cols-3 gap-4 mb-8">
         <div
@@ -146,7 +177,7 @@ onMounted(() => {
           class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center"
         >
           <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">进度</div>
-          <div class="text-2xl font-bold dark:text-white">{{ currentWordIndex + 1 }} / {{ words.length }}</div>
+          <div class="text-2xl font-bold dark:text-white">{{ words.length ? currentWordIndex + 1 : 0 }} / {{ words.length }}</div>
         </div>
       </div>
 
@@ -155,29 +186,12 @@ onMounted(() => {
         class="relative bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-80 flex flex-col items-center justify-center overflow-hidden"
       >
         <!-- Container for aligned layers -->
-        <div
-          class="relative font-mono text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter whitespace-pre-wrap text-center break-all mb-8"
-        >
-          <!-- Background Word (Grey) -->
-          <div class="text-gray-100 dark:text-gray-700">
-            {{ currentWord }}
-          </div>
-
-          <!-- Feedback Layer (Overlay) -->
-          <div class="absolute inset-0 flex">
-            <span
-              v-for="(char, index) in currentWord"
-              :key="index"
-              class="inline-block"
-              :class="{
-                'text-green-500': userInput.charAt(Number(index)) === char,
-                'text-red-500': userInput.charAt(Number(index)) !== '' && userInput.charAt(Number(index)) !== char,
-                'text-transparent': userInput.charAt(Number(index)) === '',
-              }"
-            >
-              {{ char }}
-            </span>
-          </div>
+        <div class="font-mono text-2xl sm:text-4xl font-black text-center break-words whitespace-pre-wrap mb-8 leading-relaxed">
+          <span v-for="(char, index) in currentWord" :key="index" :class="{
+            'text-green-500': userInput.charAt(index) === char,
+            'text-red-500': userInput.charAt(index) !== '' && userInput.charAt(index) !== char,
+            'text-gray-300 dark:text-gray-600': userInput.charAt(index) === '',
+          }">{{ char }}</span>
         </div>
 
         <!-- Invisible Input covering the whole area -->
@@ -191,7 +205,7 @@ onMounted(() => {
           spellcheck="false"
           v-model="userInput"
           @input="handleInput"
-          :disabled="isFinished"
+          :disabled="isFinished || !words.length"
         />
 
         <!-- Meaning & Example (Hint) -->
