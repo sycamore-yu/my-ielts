@@ -203,6 +203,7 @@ function copyAllError() {
           <h3 class="mb-2 text-xl font-bold text-gray-900 dark:text-white">
             雅思词汇真经
           </h3>
+          <router-link to="/vocabulary/my" class="text-sm text-blue-600 underline">管理我的单词 / 导入沙拉查词收藏 →</router-link>
           <span class="text-base font-normal text-gray-500 dark:text-gray-400">涵盖雅思必备核心词，逻辑词群记忆法</span>
         </div>
         <div class="items-center sm:flex">
