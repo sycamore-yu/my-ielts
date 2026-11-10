@@ -139,6 +139,39 @@ const examples: Row[] = [
   ['general:task1', 't1-extremes', 'before surging to a peak of', '随后猛增至峰值', 'The proportion increased gradually before surging to a peak of 42% in 2010.', 'surge 表示快速、显著上升；平缓增长时不要使用。'],
   ['general:task1', 't1-trend', 'It subsequently fell to...', '随后下降至……', 'The figure peaked at 35% in 2005. It subsequently fell to 28% by 2015.', 'It 必须清楚指代前句的数据；fell to 后接终点数值。'],
   ['general:task1', 't1-trend', 'After a slight decline...', '小幅下降之后……', 'After a slight decline in 2000, the figure recovered to 50%.', 'After a slight decline 作句首状语，后面通常加逗号。'],
+
+  // Task 1 — time sequencing: distinguish -ing, a finite clause and a noun phrase.
+  ['general:task1', 't1-trend', '..., before climbing to ...', '随后上升至……', 'Road freight rose to 3 million tonne-kilometres in 2009 before climbing to 5 million in 2011.', 'before + doing：前后两个动作应有相同主语。climbing 的逻辑主语仍是 road freight。'],
+  ['general:task1', 't1-trend', '..., after which it climbed to ...', '此后，它上升至……', 'Road freight reached 3 million in 2009, after which it climbed to 5 million in 2011.', 'after which 引导非限制性关系从句；其后必须有完整的主语和谓语。'],
+  ['general:task1', 't1-trend', 'subsequently', '随后；此后', 'The figure stood at 3 million in 2009. It subsequently climbed to 5 million.', '副词，可置于谓语前，或用于新句开头（Subsequently, ...）；不是必须另起一句。'],
+  ['general:task1', 't1-trend', 'This was followed by + noun phrase', '随后出现……', 'The figure rose to 3 million in 2009. This was followed by a sharp increase to 5 million in 2011.', 'followed by 后接名词短语，如 a sharp increase，不直接接 climbed。'],
+
+  // Task 1 — a maximum over time, not the highest of several categories.
+  ['general:task1', 't1-extremes', '... reached a peak of ...', '……达到峰值……', 'Road freight reached a peak of 5 million tonne-kilometres in 2011.', '表示图示时间范围内的最高点；不等于有史以来的最高值，也不表示类别排名。'],
+  ['general:task1', 't1-extremes', '... reached its highest level of ...', '……达到最高水平……', 'The figure reached its highest level of 5 million in 2011.', '指同一指标随时间变化时的最高点。'],
+  ['general:task1', 't1-extremes', '... hit a high of ...', '……达到高点……', 'Road freight hit a high of 5 million tonne-kilometres in 2011.', '用于观察期内的时间峰值；语气比 peaked at 稍口语化。'],
+  ['general:task1', 't1-extremes', '... reached a period high of ...', '……达到观察期内的最高值……', 'The figure reached a period high of 5 million in 2011.', 'period high 明确限定为图示时期，不能写成历史最高纪录。'],
+
+  // Task 1 — highest among categories at a given time or over a period.
+  ['general:task1', 't1-size', '... recorded the highest figure.', '……在各类别中数值最高', 'Road transport recorded the highest freight volume in 2011.', '比较类别的数值，而不是某一条线在时间上的峰值。应根据指标写清 volume、number 或 share。'],
+  ['general:task1', 't1-size', '... remained the largest category.', '……始终是最大的类别', 'Road remained the largest category by freight volume throughout the period.', 'remained 要求整个所述时段均保持领先。'],
+  ['general:task1', 't1-size', '... ranked first in ...', '……在……方面排名第一', 'Road transport ranked first in freight volume in 2011.', '适用于同一指标下的多个类别排名；别把时间最高点当作类别第一。'],
+  ['general:task1', 't1-size', '... dominated ...', '……占据明显优势', 'Road transport dominated freight transportation throughout the period.', 'dominated 适用于显著领先，不只是略高于其他类别。'],
+  ['general:task1', 't1-size', '... exceeded the other two modes.', '……超过另外两种方式', 'Road freight volumes exceeded those of the other two modes in 2011.', '同一指标和单位下比较；those 指代 freight volumes，避免重复。'],
+
+  // Task 1 — a minimum over time.
+  ['general:task1', 't1-extremes', '... reached a low of ...', '……降至最低点……', 'Rail freight reached a low of 0.5 million tonne-kilometres in 2015.', '描述同一指标在观察期内的最低值。'],
+  ['general:task1', 't1-extremes', '... hit a low of ...', '……触及低点……', 'The figure hit a low of 0.5 million in 2015.', '表示时间上的低点；语气比 reached a low of 稍口语化。'],
+  ['general:task1', 't1-extremes', '... fell to its lowest level ...', '……下降至最低水平……', 'Rail freight fell to its lowest level in 2015, at 0.5 million tonne-kilometres.', 'fell 含有此前下降的意义，须符合图示趋势。'],
+  ['general:task1', 't1-extremes', '... bottomed out at ...', '……跌至谷底……', 'Rail freight bottomed out at 0.5 million in 2015 before recovering.', '通常描述先下降至谷底，之后持平或回升；需有足够数据支持。'],
+  ['general:task1', 't1-extremes', '... reached a minimum of ...', '……达到最低值……', 'Rail freight reached a minimum of 0.5 million in 2015.', '指某条数据序列在所述期间的最小值，而不是类别排名最低。'],
+
+  // Task 1 — lowest among categories, with percentage-specific wording separated.
+  ['general:task1', 't1-size', '... recorded the lowest figure.', '……在各类别中数值最低', 'Rail transport recorded the lowest freight volume in 2011.', '绝对运输量更适合写 lowest volume；若是比例，才使用 share。'],
+  ['general:task1', 't1-size', '... remained the smallest category.', '……始终是最小的类别', 'Rail remained the smallest category by freight volume throughout the period.', '只有在整个观察期内一直最小时才使用 remained。'],
+  ['general:task1', 't1-size', '... ranked last in ...', '……在……方面排最后', 'Rail transport ranked last in freight volume in 2011.', '比较同一时点或期间、同一指标下的类别排名。'],
+  ['general:task1', 't1-share', '... accounted for the smallest share of ...', '……占……的比例最小', 'Rail accounted for the smallest share of total freight transport in 2011.', '仅用于构成比例；若图表给的是绝对量，优先使用 recorded the lowest volume。'],
+  ['general:task1', 't1-size', '... remained below the other two ...', '……始终低于另外两项', 'Rail freight volumes remained below those of the other two modes throughout the period.', '比较同一指标，且 throughout 要求全程均低于另外两项。'],
 ]
 
 export const extendedStarterPhrases: WritingPhrase[] = examples.map(([scope, category, text, meaning, example, note], index) => ({

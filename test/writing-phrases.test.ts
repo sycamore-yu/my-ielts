@@ -36,7 +36,7 @@ describe('IELTS writing phrase library', () => {
       ['After a slight decline...', '小幅下降之后……', 't1-trend'],
       ['By contrast, ...', '相比之下，……', 't1-compare'],
     ]
-    expect(allStarterPhrases).toHaveLength(148)
+    expect(allStarterPhrases).toHaveLength(171)
     for (const [text, meaning, category] of requested) {
       const matches = allStarterPhrases.filter(entry => entry.text === text)
       expect(matches).toHaveLength(1)
@@ -45,10 +45,8 @@ describe('IELTS writing phrase library', () => {
     }
   })
 
-  it('adds the seven new phrases to an existing browser without resetting favorites or deletions', () => {
-    const previous = allStarterPhrases.filter(item => item.id !== 'reference-91' && item.id !== 'reference-92'
-      && item.id !== 'reference-93' && item.id !== 'reference-94' && item.id !== 'reference-95'
-      && item.id !== 'reference-96' && item.id !== 'reference-97')
+  it('upgrades the earlier 141-phrase bank without resetting favorites or deletions', () => {
+    const previous = allStarterPhrases.filter(item => !item.id.startsWith('reference-') || Number(item.id.slice(10)) <= 90)
     expect(previous).toHaveLength(141)
     const old = {
       phrases: previous.filter(item => item.id !== 'reference-2')
@@ -59,14 +57,73 @@ describe('IELTS writing phrase library', () => {
     localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(previous.map(item => item.id)))
 
     const updated = loadWritingPhrases()
-    expect(updated.phrases).toHaveLength(147)
+    expect(updated.phrases).toHaveLength(170)
     expect(updated.phrases.some(item => item.id === 'reference-91')).toBe(true)
     expect(updated.phrases.some(item => item.id === 'reference-97')).toBe(true)
+    expect(updated.phrases.some(item => item.id === 'reference-120')).toBe(true)
     expect(updated.phrases.some(item => item.id === 'reference-2')).toBe(false)
     expect(updated.phrases.find(item => item.id === 'starter-29')?.meaning).toBe('我的个性化释义')
     expect(updated.favorites).toEqual(['starter-29'])
-    expect(loadWritingPhrases().phrases).toHaveLength(147)
+    expect(loadWritingPhrases().phrases).toHaveLength(170)
     expect(localStorage.getItem(WRITING_STARTER_IDS_KEY)).toContain('reference-97')
+  })
+
+  it('distils time sequencing, peak/low values and cross-category rankings', () => {
+    const requested = [
+      ['..., before climbing to ...', 't1-trend', 'before + doing'],
+      ['..., after which it climbed to ...', 't1-trend', '完整的主语和谓语'],
+      ['subsequently', 't1-trend', '副词'],
+      ['This was followed by + noun phrase', 't1-trend', '名词短语'],
+      ['... reached a peak of ...', 't1-extremes', '最高点'],
+      ['... reached its highest level of ...', 't1-extremes', '最高点'],
+      ['... hit a high of ...', 't1-extremes', '时间峰值'],
+      ['... reached a period high of ...', 't1-extremes', '图示时期'],
+      ['... recorded the highest figure.', 't1-size', '比较类别'],
+      ['... remained the largest category.', 't1-size', '整个所述时段'],
+      ['... ranked first in ...', 't1-size', '排名'],
+      ['... dominated ...', 't1-size', '显著领先'],
+      ['... exceeded the other two modes.', 't1-size', '同一指标'],
+      ['... reached a low of ...', 't1-extremes', '最低值'],
+      ['... hit a low of ...', 't1-extremes', '时间上的低点'],
+      ['... fell to its lowest level ...', 't1-extremes', '此前下降'],
+      ['... bottomed out at ...', 't1-extremes', '回升'],
+      ['... reached a minimum of ...', 't1-extremes', '最小值'],
+      ['... recorded the lowest figure.', 't1-size', '绝对运输量'],
+      ['... remained the smallest category.', 't1-size', '整个观察期'],
+      ['... ranked last in ...', 't1-size', '类别排名'],
+      ['... accounted for the smallest share of ...', 't1-share', '构成比例'],
+      ['... remained below the other two ...', 't1-size', '同一指标'],
+    ] as const
+    for (const [text, category, usage] of requested) {
+      const matches = allStarterPhrases.filter(item => item.text === text)
+      expect(matches).toHaveLength(1)
+      expect(matches[0]).toMatchObject({ task: 'task1', category })
+      expect(matches[0].example.length).toBeGreaterThan(35)
+      expect(matches[0].note).toContain(usage)
+    }
+    expect(allStarterPhrases.filter(item => item.text === '... peaked at ... in ...')).toHaveLength(1)
+  })
+
+  it('imports new entries for an existing 148-phrase library and keeps manual changes and deletions', () => {
+    const old = allStarterPhrases.filter(item => !item.id.startsWith('reference-') || Number(item.id.slice(10)) <= 97)
+    expect(old).toHaveLength(148)
+    const state = {
+      phrases: old.filter(item => item.id !== 'starter-2')
+        .map(item => item.id === 'reference-97' ? { ...item, note: '我自己补充的备注' } : item),
+      favorites: ['reference-97'],
+    }
+    localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify(state))
+    localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(old.map(item => item.id)))
+
+    const upgraded = loadWritingPhrases()
+    expect(upgraded.phrases).toHaveLength(170)
+    expect(upgraded.phrases.find(item => item.id === 'reference-97')?.note).toBe('我自己补充的备注')
+    expect(upgraded.phrases.some(item => item.id === 'starter-2')).toBe(false)
+    expect(upgraded.favorites).toEqual(['reference-97'])
+    expect(upgraded.phrases.some(item => item.id === 'reference-98')).toBe(true)
+    expect(upgraded.phrases.some(item => item.id === 'reference-120')).toBe(true)
+    expect(loadWritingPhrases().phrases).toHaveLength(170)
+    expect(localStorage.getItem(WRITING_STARTER_IDS_KEY)).toContain('reference-120')
   })
 
   it('saves custom phrases, category edits, and favorites across remounts', async () => {
