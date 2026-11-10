@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { PERSONAL_CHAPTER, personalEntries } from '../../lib/personalVocabulary'
+import { TYPING_FAMILIAR_KEY, addFamiliarWord, clearFamiliarChapter, isFamiliarWord, loadFamiliarWords } from '../../lib/typingFamiliar'
+import type { FamiliarWords } from '../../lib/typingFamiliar'
 import vocabulary from './vocabulary'
 
 const CHAPTER_KEY = 'vocabulary_typing_chapter'
@@ -12,14 +14,27 @@ const startTime = ref<number | null>(null)
 const wpm = ref(0)
 const accuracy = ref(100)
 const isFinished = ref(false)
+const typingInput = ref<HTMLInputElement | null>(null)
+const familiarWords = ref<FamiliarWords>(loadFamiliarWords())
 
-const words = computed(() => {
+interface TypingWord {
+  word: string[]
+  meaning: string
+  example: string
+  pos: string
+}
+
+const chapterWords = computed<TypingWord[]>(() => {
   if (selectedChapter.value === PERSONAL_CHAPTER)
     return personalEntries.value.map(entry => ({ word: [entry.word], meaning: entry.meaning, example: entry.example, pos: '' }))
-  const chapter = (vocabulary as any)[selectedChapter.value]
+  const chapter = (vocabulary as Record<string, { words: TypingWord[][] }>)[selectedChapter.value]
   return chapter?.words.flat() || []
 })
 
+const words = computed(() => chapterWords.value.filter(
+  entry => !isFamiliarWord(familiarWords.value, selectedChapter.value, entry.word[0]),
+))
+const familiarCount = computed(() => chapterWords.value.length - words.value.length)
 const currentWordData = computed(() => words.value[currentWordIndex.value])
 const currentWord = computed(() => currentWordData.value?.word[0] || '')
 
@@ -29,11 +44,15 @@ watch(selectedChapter, (newVal) => {
 })
 
 let advanceTimer: number | null = null
-function reset() {
+function clearAdvanceTimer() {
   if (advanceTimer !== null) {
     clearTimeout(advanceTimer)
     advanceTimer = null
   }
+}
+
+function reset() {
+  clearAdvanceTimer()
   currentWordIndex.value = 0
   userInput.value = ''
   startTime.value = null
@@ -41,6 +60,44 @@ function reset() {
   accuracy.value = 100
   isFinished.value = false
   playAudio()
+}
+
+function saveFamiliarWords(updated: FamiliarWords) {
+  familiarWords.value = updated
+  localStorage.setItem(TYPING_FAMILIAR_KEY, JSON.stringify(updated))
+}
+
+function markCurrentFamiliar() {
+  if (!currentWord.value || isFinished.value)
+    return
+  clearAdvanceTimer()
+  const updated = addFamiliarWord(familiarWords.value, selectedChapter.value, currentWord.value)
+  const removedBefore = words.value.slice(0, currentWordIndex.value).filter(
+    entry => isFamiliarWord(updated, selectedChapter.value, entry.word[0]),
+  ).length
+  saveFamiliarWords(updated)
+  // Filtering can also remove an earlier duplicate of the current word.
+  currentWordIndex.value -= removedBefore
+  userInput.value = ''
+  startTime.value = null
+  if (currentWordIndex.value >= words.value.length)
+    isFinished.value = true
+  else
+    playAudio()
+  nextTick(() => typingInput.value?.focus())
+}
+
+function restoreChapter() {
+  saveFamiliarWords(clearFamiliarChapter(familiarWords.value, selectedChapter.value))
+  reset()
+  nextTick(() => typingInput.value?.focus())
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault()
+    markCurrentFamiliar()
+  }
 }
 
 let audio = null as HTMLAudioElement | null
@@ -121,8 +178,7 @@ function nextWord() {
 
 onMounted(reset)
 onUnmounted(() => {
-  if (advanceTimer !== null)
-    clearTimeout(advanceTimer)
+  clearAdvanceTimer()
   window.speechSynthesis?.cancel()
 })
 </script>
@@ -152,8 +208,17 @@ onUnmounted(() => {
         <router-link to="/vocabulary/my" class="underline">管理我的词库（{{ personalEntries.length }} 条）</router-link>
       </div>
 
-      <div v-if="!words.length" class="mb-5 rounded border border-dashed p-6 text-center">
+      <div v-if="!chapterWords.length" class="mb-5 rounded border border-dashed p-6 text-center">
         当前词库为空。<router-link to="/vocabulary/my" class="text-blue-600 underline">添加或导入词汇</router-link>
+      </div>
+      <div v-else-if="!words.length" class="mb-5 rounded border border-dashed p-6 text-center">
+        本章单词均已标记熟悉。可以使用下方的“恢复本章”重新练习。
+      </div>
+      <div v-if="chapterWords.length" class="mb-5 flex items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-400">
+        <span>已熟悉 {{ familiarCount }} 个，剩余 {{ words.length }} 个</span>
+        <button v-if="familiarCount" class="text-blue-600 dark:text-blue-400 underline" @click="restoreChapter">
+          恢复本章
+        </button>
       </div>
 
       <!-- Stats -->
@@ -177,7 +242,7 @@ onUnmounted(() => {
           class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center"
         >
           <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">进度</div>
-          <div class="text-2xl font-bold dark:text-white">{{ words.length ? currentWordIndex + 1 : 0 }} / {{ words.length }}</div>
+          <div class="text-2xl font-bold dark:text-white">{{ words.length ? (isFinished ? words.length : currentWordIndex + 1) : 0 }} / {{ words.length }}</div>
         </div>
       </div>
 
@@ -196,6 +261,7 @@ onUnmounted(() => {
 
         <!-- Invisible Input covering the whole area -->
         <input
+          ref="typingInput"
           type="text"
           class="absolute inset-0 opacity-0 w-full h-full cursor-default caret-transparent"
           autofocus
@@ -205,6 +271,7 @@ onUnmounted(() => {
           spellcheck="false"
           v-model="userInput"
           @input="handleInput"
+          @keydown="handleKeydown"
           :disabled="isFinished || !words.length"
         />
 
@@ -234,6 +301,16 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="mt-4 text-center">
+        <button
+          class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-40"
+          :disabled="isFinished || !words.length"
+          @click="markCurrentFamiliar"
+        >
+          标记熟悉并跳过（Enter）
+        </button>
+      </div>
+
       <!-- Finish Overlay -->
       <div
         v-if="isFinished"
@@ -250,7 +327,7 @@ onUnmounted(() => {
 
       <!-- Instructions -->
       <div class="mt-8 text-center text-gray-400 text-sm">
-        提示：直接开始输入即可，输入正确后会自动进入下一个单词。
+        提示：直接开始输入，输入正确后自动进入下一词；按 Enter 将当前词标记熟悉，后续练习不再出现。
       </div>
     </div>
   </div>
