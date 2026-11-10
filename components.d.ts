@@ -13,5 +13,6 @@ declare module 'vue' {
     TheFooter: typeof import('./src/components/TheFooter.vue')['default']
     TheHeader: typeof import('./src/components/TheHeader.vue')['default']
     TheInput: typeof import('./src/components/TheInput.vue')['default']
+    WritingPhraseBook: typeof import('./src/components/WritingPhraseBook.vue')['default']
   }
 }
