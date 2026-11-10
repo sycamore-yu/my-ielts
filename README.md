@@ -42,7 +42,13 @@
 
 [Writing 写作短语库](https://sycamore-yu.github.io/my-ielts/#/writing) 按 Task 1（Introduction、Overview、大小/相等/超过、占比/倍数、趋势、波动、峰谷、对比、地图/流程）和 Task 2（Introduction、Body、原因、举例、让步、Conclusion）整理示例表达。支持搜索、收藏、添加、编辑、删除、复制英文表达，以及 JSON 备份与合并导入。
 
+此外，Task 1 增加柱状图、表格、曲线图、饼状图、混合图、地图和流程图筛选。Task 2 增加教育、科技、传统与文化、城市化与全球化、政府、环境、媒体、社会生活、抽象主题筛选，以及同意与否、利弊比较、双边讨论、报告类题型筛选。这些标签可以与原有「表达功能」分类组合使用，添加和编辑词条时也可指定相关标签。「报告类」只是学习筛选标签，作答仍须以题目实际要求为准。
+
+参考 [IELTS Simon 官方课堂](https://ieltssimon.substack.com/about)、[Simon Task 1 主题索引（第三方）](https://ielts-simon.study/ielts-writing-task-1-academic/) 和 [IELTS 官方 Task 2 题型说明](https://ielts.org/news-and-insights/ielts-writing-task-2-how-to-understand-ielts-question-prompts)。新增英文短语和例句为独立整理，不是直接转载 Simon 的范文。
+
 所有修改和收藏保存在当前浏览器的 `localStorage`，与“我的单词”分开存储，不会自动跨设备同步。原有“100 句翻译练习”仍可通过页面顶部的标签进入。
+
+旧版词库在首次打开时自动补入新示例，原有编辑、收藏与删除记录保留。以后新增内置短语时也不会恢复已删除的旧词条。
 
 ## 概述
 

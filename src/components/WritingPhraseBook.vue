@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { WRITING_PHRASES_KEY, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, writingCategories } from '../lib/writingPhrases'
-import type { WritingPhrase, WritingPhraseState, WritingTask } from '../lib/writingPhrases'
+import { WRITING_PHRASES_KEY, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, writingCategories, writingChartTypes, writingQuestionTypes, writingTopics } from '../lib/writingPhrases'
+import type { WritingChartType, WritingPhrase, WritingPhraseState, WritingQuestionType, WritingTask, WritingTopic } from '../lib/writingPhrases'
 
 const state = ref<WritingPhraseState>(loadWritingPhrases())
 const selectedTask = ref<WritingTask>('task1')
 const selectedCategory = ref('all')
+const selectedChartType = ref<WritingChartType | 'all'>('all')
+const selectedTopic = ref<WritingTopic | 'all'>('all')
+const selectedQuestionType = ref<WritingQuestionType | 'all'>('all')
 const search = ref('')
 const favoritesOnly = ref(false)
 const message = ref('')
@@ -17,6 +20,9 @@ const backupInput = ref<HTMLInputElement | null>(null)
 const form = reactive({
   task: 'task1' as WritingTask,
   category: 't1-intro',
+  chartType: 'all' as WritingChartType | 'all',
+  topic: 'all' as WritingTopic | 'all',
+  questionType: 'all' as WritingQuestionType | 'all',
   text: '',
   meaning: '',
   example: '',
@@ -27,10 +33,26 @@ const categories = computed(() => writingCategories.filter(item => item.task ===
 const formCategories = computed(() => writingCategories.filter(item => item.task === form.task))
 const currentPhrases = computed(() => state.value.phrases.filter(item => item.task === selectedTask.value))
 const favoriteIds = computed(() => new Set(state.value.favorites))
+const selectedTip = computed(() => selectedTask.value === 'task1'
+  ? writingChartTypes.find(item => item.id === selectedChartType.value)?.description
+    || '先概括主要特征，再选择有代表性的数值；Overview 不必逐个罗列数据。'
+  : writingQuestionTypes.find(item => item.id === selectedQuestionType.value)?.description
+    || writingTopics.find(item => item.id === selectedTopic.value)?.description
+    || '先读懂题目具体要求，再确定立场、论点和例子，避免机械套用模板。')
+
+function matchesDimension<T extends string>(tags: T[] | undefined, selection: T | 'all') {
+  return selection === 'all' || !tags?.length || tags.includes(selection)
+}
+
 const visiblePhrases = computed(() => {
   const term = search.value.trim().toLocaleLowerCase()
   return currentPhrases.value.filter((item) => {
     if (selectedCategory.value !== 'all' && item.category !== selectedCategory.value)
+      return false
+    if (item.task === 'task1' && !matchesDimension(item.chartTypes, selectedChartType.value))
+      return false
+    if (item.task === 'task2'
+      && (!matchesDimension(item.topics, selectedTopic.value) || !matchesDimension(item.questionTypes, selectedQuestionType.value)))
       return false
     if (favoritesOnly.value && !favoriteIds.value.has(item.id))
       return false
@@ -39,16 +61,27 @@ const visiblePhrases = computed(() => {
   })
 })
 
-watch(selectedTask, () => {
+function selectTask(task: WritingTask) {
+  selectedTask.value = task
   selectedCategory.value = 'all'
+  selectedChartType.value = 'all'
+  selectedTopic.value = 'all'
+  selectedQuestionType.value = 'all'
   favoritesOnly.value = false
   search.value = ''
   showForm.value = false
-})
+}
 
 watch(() => form.task, () => {
   if (!formCategories.value.some(item => item.id === form.category))
     form.category = formCategories.value[0].id
+  if (form.task === 'task1') {
+    form.topic = 'all'
+    form.questionType = 'all'
+  }
+  else {
+    form.chartType = 'all'
+  }
 })
 
 function saveState(updated: WritingPhraseState) {
@@ -60,6 +93,9 @@ function resetForm(task: WritingTask = selectedTask.value) {
   editingId.value = ''
   form.task = task
   form.category = writingCategories.find(item => item.task === task)!.id
+  form.chartType = 'all'
+  form.topic = 'all'
+  form.questionType = 'all'
   form.text = ''
   form.meaning = ''
   form.example = ''
@@ -77,6 +113,9 @@ function editPhrase(item: WritingPhrase) {
   editingId.value = item.id
   form.task = item.task
   form.category = item.category
+  form.chartType = item.chartTypes?.[0] || 'all'
+  form.topic = item.topics?.[0] || 'all'
+  form.questionType = item.questionTypes?.[0] || 'all'
   form.text = item.text
   form.meaning = item.meaning
   form.example = item.example
@@ -109,13 +148,19 @@ function savePhrase() {
     meaning: form.meaning.trim(),
     example: form.example.trim(),
     note: form.note.trim(),
+    chartTypes: form.task === 'task1' && form.chartType !== 'all' ? [form.chartType] : [],
+    topics: form.task === 'task2' && form.topic !== 'all' ? [form.topic] : [],
+    questionTypes: form.task === 'task2' && form.questionType !== 'all' ? [form.questionType] : [],
   }
   const updated = editingId.value
     ? state.value.phrases.map(item => item.id === editingId.value ? phrase : item)
     : [phrase, ...state.value.phrases]
   saveState({ ...state.value, phrases: updated })
-  selectedTask.value = phrase.task
+  selectTask(phrase.task)
   selectedCategory.value = phrase.category
+  selectedChartType.value = phrase.chartTypes?.[0] || 'all'
+  selectedTopic.value = phrase.topics?.[0] || 'all'
+  selectedQuestionType.value = phrase.questionTypes?.[0] || 'all'
   search.value = ''
   favoritesOnly.value = false
   showForm.value = false
@@ -201,7 +246,7 @@ async function importBackup(event: Event) {
         type="button"
         class="rounded-lg border px-4 py-2 text-sm font-semibold"
         :class="selectedTask === task.id ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'"
-        @click="selectedTask = task.id as WritingTask"
+        @click="selectTask(task.id as WritingTask)"
       >
         {{ task.label }}
       </button>
@@ -209,6 +254,88 @@ async function importBackup(event: Event) {
         {{ currentPhrases.length }} 条表达
       </span>
     </div>
+
+    <div v-if="selectedTask === 'task1'" class="mb-4 flex flex-wrap items-center gap-2">
+      <span class="mr-1 text-sm font-semibold">题型：</span>
+      <button
+        type="button"
+        class="rounded-md px-3 py-2 text-sm"
+        :class="selectedChartType === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+        @click="selectedChartType = 'all'"
+      >
+        全部
+      </button>
+      <button
+        v-for="chart in writingChartTypes"
+        :key="chart.id"
+        type="button"
+        class="rounded-md px-3 py-2 text-sm"
+        :class="selectedChartType === chart.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+        @click="selectedChartType = chart.id"
+      >
+        {{ chart.label }}
+      </button>
+    </div>
+    <div v-else class="mb-4 grid gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="mr-1 text-sm font-semibold">话题：</span>
+        <button
+          type="button"
+          class="rounded-md px-3 py-2 text-sm"
+          :class="selectedTopic === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+          @click="selectedTopic = 'all'"
+        >
+          全部
+        </button>
+        <button
+          v-for="topic in writingTopics"
+          :key="topic.id"
+          type="button"
+          class="rounded-md px-3 py-2 text-sm"
+          :class="selectedTopic === topic.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+          @click="selectedTopic = topic.id"
+        >
+          {{ topic.label }}
+        </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="mr-1 text-sm font-semibold">题型：</span>
+        <button
+          type="button"
+          class="rounded-md px-3 py-2 text-sm"
+          :class="selectedQuestionType === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+          @click="selectedQuestionType = 'all'"
+        >
+          全部
+        </button>
+        <button
+          v-for="question in writingQuestionTypes"
+          :key="question.id"
+          type="button"
+          class="rounded-md px-3 py-2 text-sm"
+          :class="selectedQuestionType === question.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'"
+          @click="selectedQuestionType = question.id"
+        >
+          {{ question.label }}
+        </button>
+      </div>
+    </div>
+    <p class="mb-5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+      写作提醒：{{ selectedTip }}
+    </p>
+    <details class="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800">
+      <summary class="cursor-pointer font-semibold">Simon 写作方法 · 整理笔记</summary>
+      <div v-if="selectedTask === 'task1'" class="mt-3 grid gap-2 leading-relaxed text-gray-600 dark:text-gray-300">
+        <p>结构：Introduction → Overview → 两个细节段。概述通常选择约 2 个最重要的总体特征。</p>
+        <p>Overview：先看最大、最小、主要变化与共同趋势，具体数字留到细节段。</p>
+        <p>数据图：将走势或类别相近的项目分组比较；流程图和地图应概括整体步骤或主要变化。</p>
+      </div>
+      <div v-else class="mt-3 grid gap-2 leading-relaxed text-gray-600 dark:text-gray-300">
+        <p>审题：先识别是否要求表态、讨论双方、比较利弊，或者回答原因与解决方案等问题。</p>
+        <p>主体段：提出清楚的论点，再解释原因并给出恰当的例子，避免只堆积连接词。</p>
+        <p>题型标签只是辅助检索；不要背诵固定全文后直接套题，应回应题目中的所有要求。</p>
+      </div>
+    </details>
 
     <div class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto]">
       <input
@@ -228,7 +355,8 @@ async function importBackup(event: Event) {
       </button>
     </div>
 
-    <div class="mb-6 flex flex-wrap gap-2">
+    <div class="mb-6 flex flex-wrap items-center gap-2">
+      <span class="mr-1 text-sm font-semibold">表达功能：</span>
       <button
         type="button"
         class="rounded-full border px-3 py-1.5 text-sm"
@@ -274,6 +402,29 @@ async function importBackup(event: Event) {
             <option v-for="category in formCategories" :key="category.id" :value="category.id">{{ category.label }}</option>
           </select>
         </label>
+        <label v-if="form.task === 'task1'" class="flex flex-col gap-1 text-sm">
+          图表题型
+          <select v-model="form.chartType" aria-label="短语图表题型" class="rounded-lg border border-gray-300 bg-white p-2 text-gray-900">
+            <option value="all">通用表达</option>
+            <option v-for="chart in writingChartTypes" :key="chart.id" :value="chart.id">{{ chart.label }}</option>
+          </select>
+        </label>
+        <template v-else>
+          <label class="flex flex-col gap-1 text-sm">
+            话题
+            <select v-model="form.topic" aria-label="短语话题" class="rounded-lg border border-gray-300 bg-white p-2 text-gray-900">
+              <option value="all">通用表达</option>
+              <option v-for="topic in writingTopics" :key="topic.id" :value="topic.id">{{ topic.label }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-sm">
+            问题题型
+            <select v-model="form.questionType" aria-label="短语问题题型" class="rounded-lg border border-gray-300 bg-white p-2 text-gray-900">
+              <option value="all">通用表达</option>
+              <option v-for="question in writingQuestionTypes" :key="question.id" :value="question.id">{{ question.label }}</option>
+            </select>
+          </label>
+        </template>
         <label class="flex flex-col gap-1 text-sm sm:col-span-2">
           英文表达 *
           <input ref="phraseInput" v-model="form.text" required class="rounded-lg border border-gray-300 bg-white p-2 text-gray-900" placeholder="accounted for the largest proportion of ...">
@@ -310,9 +461,18 @@ async function importBackup(event: Event) {
         class="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
       >
         <div class="mb-3 flex items-center justify-between gap-2">
-          <span class="text-xs font-semibold text-blue-700 dark:text-blue-300">
-            {{ writingCategories.find(item => item.id === phrase.category)?.label }}
-          </span>
+          <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+            <span>{{ writingCategories.find(item => item.id === phrase.category)?.label }}</span>
+            <span v-for="chart in phrase.chartTypes" :key="chart" class="rounded bg-indigo-50 px-2 py-1 dark:bg-gray-700">
+              {{ writingChartTypes.find(item => item.id === chart)?.label }}
+            </span>
+            <span v-for="topic in phrase.topics" :key="topic" class="rounded bg-indigo-50 px-2 py-1 dark:bg-gray-700">
+              {{ writingTopics.find(item => item.id === topic)?.label }}
+            </span>
+            <span v-for="question in phrase.questionTypes" :key="question" class="rounded bg-indigo-50 px-2 py-1 dark:bg-gray-700">
+              {{ writingQuestionTypes.find(item => item.id === question)?.label }}
+            </span>
+          </div>
           <button
             type="button"
             class="text-sm"
@@ -343,6 +503,14 @@ async function importBackup(event: Event) {
         <button type="button" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600" @click="exportBackup">导出 JSON 备份</button>
         <button type="button" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600" @click="backupInput?.click()">导入并合并备份</button>
         <input ref="backupInput" type="file" accept=".json,application/json" class="hidden" @change="importBackup">
+      </div>
+    </div>
+    <div class="mt-5 text-xs leading-6 text-gray-500 dark:text-gray-400">
+      <p>方法参考：短语与例句为独立整理，不是 Simon 范文原文。请根据实际题目选择表达，避免机械套用。</p>
+      <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <a href="https://ieltssimon.substack.com/about" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline dark:text-blue-400">IELTS Simon 官方课堂</a>
+        <a href="https://ielts-simon.study/ielts-writing-task-1-academic/" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline dark:text-blue-400">Simon Task 1 课程索引（第三方）</a>
+        <a href="https://ielts.org/news-and-insights/ielts-writing-task-2-how-to-understand-ielts-question-prompts" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline dark:text-blue-400">IELTS 官方 Task 2 题型说明</a>
       </div>
     </div>
   </section>

@@ -1,6 +1,42 @@
+import { extendedStarterPhrases } from './writingPhraseExamples'
+
 export const WRITING_PHRASES_KEY = 'my-ielts-writing-phrases-v1'
+export const WRITING_STARTER_IDS_KEY = 'my-ielts-writing-seen-starters-v2'
 
 export type WritingTask = 'task1' | 'task2'
+
+export const writingChartTypes = [
+  { id: 'bar', label: '柱状图', description: '对比类别高低；有年份时再描述变化。' },
+  { id: 'table', label: '表格', description: '选取最大、最小值与显著差距，不逐格罗列。' },
+  { id: 'line', label: '曲线图', description: '优先概括整体趋势，再写起点、终点与交叉点。' },
+  { id: 'pie', label: '饼状图', description: '说明构成比例；多年份饼图才比较份额变化。' },
+  { id: 'mixed', label: '混合图', description: '分别识别图表指标和单位，概括两图之间的联系。' },
+  { id: 'map', label: '地图', description: '概括主要用途变化，再按方位描述改建与保留部分。' },
+  { id: 'process', label: '流程图', description: 'Overview 说明起点、终点和总体阶段；细节按步骤写。' },
+] as const
+
+export const writingTopics = [
+  { id: 'education', label: '教育类', description: '课程、教学方法、教育公平。' },
+  { id: 'technology', label: '科技类', description: '技术应用、自动化、个人数据。' },
+  { id: 'culture', label: '传统与文化类', description: '文化遗产、传统、跨文化理解。' },
+  { id: 'urban', label: '城市化与全球化', description: '城市扩张、交通、国际联系。' },
+  { id: 'government', label: '政府类', description: '公共支出、公共服务、政策取舍。' },
+  { id: 'environment', label: '环境类', description: '能源、排放、生物多样性。' },
+  { id: 'media', label: '媒体类', description: '社交媒体、广告、信息质量。' },
+  { id: 'society', label: '社会生活类', description: '家庭、人际关系、就业、健康。' },
+  { id: 'abstract', label: '抽象类', description: '幸福、自由、成功、个人责任。' },
+] as const
+
+export const writingQuestionTypes = [
+  { id: 'opinion', label: '同意与否题', description: '明确立场并解释原因。' },
+  { id: 'advantages', label: '利弊比较题', description: '区分列举利弊与判断哪方更重要。' },
+  { id: 'discussion', label: '双边讨论题', description: '公平解释双方观点；题目要求时表达自己的观点。' },
+  { id: 'report', label: '报告类', description: '常见原因、问题、解决方案或两问；按实际题干回答。' },
+] as const
+
+export type WritingChartType = typeof writingChartTypes[number]['id']
+export type WritingTopic = typeof writingTopics[number]['id']
+export type WritingQuestionType = typeof writingQuestionTypes[number]['id']
 
 export interface WritingCategory {
   id: string
@@ -17,6 +53,10 @@ export interface WritingPhrase {
   meaning: string
   example: string
   note: string
+  /** Empty or omitted tags mean the expression is generally applicable. */
+  chartTypes?: WritingChartType[]
+  topics?: WritingTopic[]
+  questionTypes?: WritingQuestionType[]
 }
 
 export interface WritingPhraseState {
@@ -108,6 +148,12 @@ export const starterPhrases: WritingPhrase[] = starterRows.map(([category, text,
   note: note || '',
 }))
 
+export const allStarterPhrases = [...starterPhrases, ...extendedStarterPhrases]
+
+function validTags(tags: unknown, valid: readonly string[]) {
+  return tags === undefined || (Array.isArray(tags) && tags.every(tag => typeof tag === 'string' && valid.includes(tag)))
+}
+
 function isPhrase(value: unknown): value is WritingPhrase {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     return false
@@ -118,6 +164,9 @@ function isPhrase(value: unknown): value is WritingPhrase {
     && typeof phrase.meaning === 'string'
     && typeof phrase.example === 'string'
     && typeof phrase.note === 'string'
+    && validTags(phrase.chartTypes, writingChartTypes.map(item => item.id))
+    && validTags(phrase.topics, writingTopics.map(item => item.id))
+    && validTags(phrase.questionTypes, writingQuestionTypes.map(item => item.id))
     && !!category && category.task === phrase.task
 }
 
@@ -135,16 +184,56 @@ export function parseWritingBackup(json: string): WritingPhraseState {
   }
 }
 
-export function loadWritingPhrases(storage: Pick<Storage, 'getItem'> = localStorage): WritingPhraseState {
+export function loadWritingPhrases(storage: Pick<Storage, 'getItem' | 'setItem'> = localStorage): WritingPhraseState {
+  let result: WritingPhraseState
   try {
     const saved = storage.getItem(WRITING_PHRASES_KEY)
-    return saved === null
-      ? { phrases: starterPhrases.map(item => ({ ...item })), favorites: [] }
-      : parseWritingBackup(saved)
+    if (saved === null) {
+      result = { phrases: allStarterPhrases.map(item => ({ ...item })), favorites: [] }
+    }
+    else {
+      result = parseWritingBackup(saved)
+      const previousSeen = storage.getItem(WRITING_STARTER_IDS_KEY)
+      // V1 contained only starter-1 through starter-51. Treat their IDs as
+      // already seen so user-deleted or edited entries remain untouched.
+      const legacyIds = starterPhrases.map(item => item.id)
+      let seen = legacyIds
+      if (previousSeen !== null) {
+        try {
+          const parsed: unknown = JSON.parse(previousSeen)
+          if (Array.isArray(parsed) && parsed.every(id => typeof id === 'string'))
+            seen = parsed
+        }
+        catch {
+          // Keep the V1 seen IDs if the optional migration marker is malformed.
+        }
+      }
+      const known = new Set(seen)
+      const existing = new Set(result.phrases.map(item => item.id))
+      const additions = allStarterPhrases.filter(item => !known.has(item.id) && !existing.has(item.id))
+      if (additions.length) {
+        result = { ...result, phrases: [...result.phrases, ...additions.map(item => ({ ...item }))] }
+        try {
+          // Persist additions before marking them as seen. Otherwise a second
+          // page load would omit them without any user action.
+          storage.setItem(WRITING_PHRASES_KEY, JSON.stringify(result))
+        }
+        catch {
+          return result
+        }
+      }
+    }
   }
   catch {
-    return { phrases: starterPhrases.map(item => ({ ...item })), favorites: [] }
+    result = { phrases: allStarterPhrases.map(item => ({ ...item })), favorites: [] }
   }
+  // A separate marker prevents restored starter entries after users delete them.
+  // Do not discard loaded user data if their browser rejects a storage write.
+  try {
+    storage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(allStarterPhrases.map(item => item.id)))
+  }
+  catch {}
+  return result
 }
 
 export function mergeWritingBackup(current: WritingPhraseState, incoming: WritingPhraseState): WritingPhraseState {

@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WritingPhraseBook from '../src/components/WritingPhraseBook.vue'
 import WritingPage from '../src/pages/writing/index.vue'
-import { WRITING_PHRASES_KEY, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, starterPhrases, writingCategories } from '../src/lib/writingPhrases'
+import { WRITING_PHRASES_KEY, allStarterPhrases, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, starterPhrases, writingCategories, writingChartTypes, writingQuestionTypes, writingTopics } from '../src/lib/writingPhrases'
 
 function button(wrapper: ReturnType<typeof mount>, label: string) {
   const match = wrapper.findAll('button').find(item => item.text().includes(label))
@@ -22,7 +22,7 @@ describe('IELTS writing phrase library', () => {
     expect(writingCategories.map(item => item.label)).toContain('Overview')
     expect(writingCategories.map(item => item.label)).toContain('大小·相等·超过')
     expect(starterPhrases.some(item => item.task === 'task2' && item.category === 't2-conclusion')).toBe(true)
-    expect(loadWritingPhrases().phrases).toHaveLength(starterPhrases.length)
+    expect(loadWritingPhrases().phrases).toHaveLength(allStarterPhrases.length)
   })
 
   it('saves custom phrases, category edits, and favorites across remounts', async () => {
@@ -90,7 +90,7 @@ describe('IELTS writing phrase library', () => {
     await button(wrapper, 'Conclusion').trigger('click')
     expect(wrapper.text()).toContain('In conclusion, I believe that ...')
     expect(wrapper.text()).not.toContain('The bar chart compares ...')
-    await wrapper.get('input[type="search"]').setValue('On balance')
+    await wrapper.get('input[type="search"]').setValue('working from home outweigh')
     expect(wrapper.findAll('article')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -98,10 +98,80 @@ describe('IELTS writing phrase library', () => {
   it('supports JSON backups and merging without duplicates', () => {
     const saved = loadWritingPhrases()
     const parsed = parseWritingBackup(JSON.stringify(saved))
-    expect(mergeWritingBackup(saved, parsed).phrases).toHaveLength(starterPhrases.length)
+    expect(mergeWritingBackup(saved, parsed).phrases).toHaveLength(allStarterPhrases.length)
     expect(() => parseWritingBackup('{"phrases":[{"text":"bad"}],"favorites":[]}')).toThrow('备份格式错误')
     localStorage.setItem(WRITING_PHRASES_KEY, '{broken')
-    expect(loadWritingPhrases().phrases).toHaveLength(starterPhrases.length)
+    expect(loadWritingPhrases().phrases).toHaveLength(allStarterPhrases.length)
+  })
+
+  it('supports all chart types, topics and question-type filters', async () => {
+    expect(writingChartTypes.map(item => item.label)).toEqual(['柱状图', '表格', '曲线图', '饼状图', '混合图', '地图', '流程图'])
+    expect(writingTopics).toHaveLength(9)
+    expect(writingQuestionTypes.map(item => item.label)).toEqual(['同意与否题', '利弊比较题', '双边讨论题', '报告类'])
+
+    for (const chart of writingChartTypes)
+      expect(allStarterPhrases.some(item => item.chartTypes?.includes(chart.id))).toBe(true)
+    for (const topic of writingTopics)
+      expect(allStarterPhrases.some(item => item.topics?.includes(topic.id))).toBe(true)
+    for (const question of writingQuestionTypes)
+      expect(allStarterPhrases.some(item => item.questionTypes?.includes(question.id))).toBe(true)
+
+    const wrapper = mount(WritingPhraseBook)
+    await button(wrapper, '曲线图').trigger('click')
+    expect(wrapper.text()).toContain('with the former having the largest number throughout the period')
+    await button(wrapper, '地图').trigger('click')
+    expect(wrapper.text()).toContain('A new ... was constructed to the north of ...')
+    expect(wrapper.text()).not.toContain('with the former having the largest number throughout the period')
+
+    await button(wrapper, 'Task 2 · 大作文').trigger('click')
+    await button(wrapper, '环境类').trigger('click')
+    expect(wrapper.text()).toContain('reduce greenhouse gas emissions')
+    await button(wrapper, '利弊比较题').trigger('click')
+    expect(wrapper.text()).toContain('advantages of ... outweigh its disadvantages')
+    expect(wrapper.text()).not.toContain('The bar chart compares')
+    wrapper.unmount()
+  })
+
+  it('tags user-created phrases with the selected chart or topic and question type', async () => {
+    const wrapper = mount(WritingPhraseBook)
+    await button(wrapper, '添加短语').trigger('click')
+    await wrapper.get('input[placeholder="accounted for the largest proportion of ..."]').setValue('a new pie expression')
+    await wrapper.get('select[aria-label="短语图表题型"]').setValue('pie')
+    await wrapper.get('form').trigger('submit')
+    expect(loadWritingPhrases().phrases.find(item => item.text === 'a new pie expression')?.chartTypes).toEqual(['pie'])
+
+    await button(wrapper, 'Task 2 · 大作文').trigger('click')
+    await button(wrapper, '添加短语').trigger('click')
+    await wrapper.get('input[placeholder="accounted for the largest proportion of ..."]').setValue('a topic sentence')
+    await wrapper.get('select[aria-label="短语话题"]').setValue('education')
+    await wrapper.get('select[aria-label="短语问题题型"]').setValue('opinion')
+    await wrapper.get('form').trigger('submit')
+    const newPhrase = loadWritingPhrases().phrases.find(item => item.text === 'a topic sentence')
+    expect(newPhrase?.topics).toEqual(['education'])
+    expect(newPhrase?.questionTypes).toEqual(['opinion'])
+    wrapper.unmount()
+  })
+
+  it('preserves V1 edits and deletions and imports only newly released expressions', () => {
+    const legacy = {
+      phrases: starterPhrases
+        .filter(item => item.id !== 'starter-2')
+        .map(item => item.id === 'starter-1' ? { ...item, meaning: '已手动修改的含义' } : item),
+      favorites: ['starter-1'],
+    }
+    localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify(legacy))
+    const upgraded = loadWritingPhrases()
+    expect(upgraded.phrases.find(item => item.id === 'starter-1')?.meaning).toBe('已手动修改的含义')
+    expect(upgraded.phrases.some(item => item.id === 'starter-2')).toBe(false)
+    expect(upgraded.phrases.some(item => item.id === 'reference-1')).toBe(true)
+    expect(upgraded.favorites).toEqual(['starter-1'])
+    expect(loadWritingPhrases().phrases.some(item => item.id === 'reference-1')).toBe(true)
+
+    localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify({
+      ...upgraded,
+      phrases: upgraded.phrases.filter(item => item.id !== 'reference-1'),
+    }))
+    expect(loadWritingPhrases().phrases.some(item => item.id === 'reference-1')).toBe(false)
   })
 
   it('keeps the original 100-sentence practice accessible', async () => {
