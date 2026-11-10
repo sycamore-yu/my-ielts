@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WritingPhraseBook from '../src/components/WritingPhraseBook.vue'
 import WritingPage from '../src/pages/writing/index.vue'
-import { WRITING_PHRASES_KEY, allStarterPhrases, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, starterPhrases, writingCategories, writingChartTypes, writingQuestionTypes, writingTopics } from '../src/lib/writingPhrases'
+import { WRITING_PHRASES_KEY, WRITING_STARTER_IDS_KEY, allStarterPhrases, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, starterPhrases, writingCategories, writingChartTypes, writingQuestionTypes, writingTopics } from '../src/lib/writingPhrases'
 
 function button(wrapper: ReturnType<typeof mount>, label: string) {
   const match = wrapper.findAll('button').find(item => item.text().includes(label))
@@ -23,6 +23,50 @@ describe('IELTS writing phrase library', () => {
     expect(writingCategories.map(item => item.label)).toContain('大小·相等·超过')
     expect(starterPhrases.some(item => item.task === 'task2' && item.category === 't2-conclusion')).toBe(true)
     expect(loadWritingPhrases().phrases).toHaveLength(allStarterPhrases.length)
+  })
+
+  it('includes all requested trend expressions without duplicating By contrast', () => {
+    const requested = [
+      ['despite some fluctuations', '尽管存在一些波动', 't1-stable'],
+      ['remained dominant thereafter', '此后一直占据主导地位', 't1-overview'],
+      ['followed similar patterns', '呈现相似的变化趋势', 't1-compare'],
+      ['experienced a more modest rise', '增幅相对较小', 't1-trend'],
+      ['before surging to a peak of', '随后猛增至峰值', 't1-extremes'],
+      ['It subsequently fell to...', '随后下降至……', 't1-trend'],
+      ['After a slight decline...', '小幅下降之后……', 't1-trend'],
+      ['By contrast, ...', '相比之下，……', 't1-compare'],
+    ]
+    expect(allStarterPhrases).toHaveLength(148)
+    for (const [text, meaning, category] of requested) {
+      const matches = allStarterPhrases.filter(entry => entry.text === text)
+      expect(matches).toHaveLength(1)
+      expect(matches[0]).toMatchObject({ task: 'task1', meaning, category })
+      expect(matches[0].example.length).toBeGreaterThan(25)
+    }
+  })
+
+  it('adds the seven new phrases to an existing browser without resetting favorites or deletions', () => {
+    const previous = allStarterPhrases.filter(item => item.id !== 'reference-91' && item.id !== 'reference-92'
+      && item.id !== 'reference-93' && item.id !== 'reference-94' && item.id !== 'reference-95'
+      && item.id !== 'reference-96' && item.id !== 'reference-97')
+    expect(previous).toHaveLength(141)
+    const old = {
+      phrases: previous.filter(item => item.id !== 'reference-2')
+        .map(item => item.id === 'starter-29' ? { ...item, meaning: '我的个性化释义' } : item),
+      favorites: ['starter-29'],
+    }
+    localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify(old))
+    localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(previous.map(item => item.id)))
+
+    const updated = loadWritingPhrases()
+    expect(updated.phrases).toHaveLength(147)
+    expect(updated.phrases.some(item => item.id === 'reference-91')).toBe(true)
+    expect(updated.phrases.some(item => item.id === 'reference-97')).toBe(true)
+    expect(updated.phrases.some(item => item.id === 'reference-2')).toBe(false)
+    expect(updated.phrases.find(item => item.id === 'starter-29')?.meaning).toBe('我的个性化释义')
+    expect(updated.favorites).toEqual(['starter-29'])
+    expect(loadWritingPhrases().phrases).toHaveLength(147)
+    expect(localStorage.getItem(WRITING_STARTER_IDS_KEY)).toContain('reference-97')
   })
 
   it('saves custom phrases, category edits, and favorites across remounts', async () => {

@@ -3,7 +3,7 @@ import type { WritingChartType, WritingPhrase, WritingQuestionType, WritingTopic
 // New expressions and example sentences are original teaching examples.
 // Simon's publicly available approach informs the categorisation and usage
 // notes; none of these are presented as quotations from his model essays.
-type Scope = `chart:${WritingChartType}` | `topic:${WritingTopic}` | `question:${WritingQuestionType}`
+type Scope = `chart:${WritingChartType}` | `topic:${WritingTopic}` | `question:${WritingQuestionType}` | 'general:task1'
 type Row = [Scope, string, string, string, string, string?]
 
 const examples: Row[] = [
@@ -130,6 +130,15 @@ const examples: Row[] = [
   ['question:report', 't2-reason', 'This can lead to ...', '这可能导致……', 'This can lead to longer commutes and greater financial pressure.'],
   ['question:report', 't2-body', 'A practical way to address this issue would be to ...', '解决这一问题的一种可行方法是……', 'A practical way to address this issue would be to expand public transport.'],
   ['question:report', 't2-conclusion', 'The key causes are ..., and possible responses include ...', '主要原因是……，可采取的措施包括……', 'The key causes are rising housing costs and limited transport options, and possible responses include better urban planning.', '报告类还可能是两问，例如原因与影响；必须按题目实际问题回答。'],
+
+  // Task 1 — generally reusable expressions from the user's practice notes.
+  ['general:task1', 't1-stable', 'despite some fluctuations', '尽管存在一些波动', 'Despite some fluctuations, the figure remained close to 40% throughout the period.', 'despite 后接名词或动名词，不直接接完整从句。'],
+  ['general:task1', 't1-overview', 'remained dominant thereafter', '此后一直占据主导地位', 'The service sector became the largest employer in 1990 and remained dominant thereafter.', '只有此后一直保持最高占比或领先地位时才使用。'],
+  ['general:task1', 't1-compare', 'followed similar patterns', '呈现相似的变化趋势', 'Employment in retail and tourism followed similar patterns, with both figures rising steadily.', '表示变化轨迹相似，不代表数值相同。'],
+  ['general:task1', 't1-trend', 'experienced a more modest rise', '增幅相对较小', 'By contrast, the share of cycling experienced a more modest rise, from 12% to 15%.', 'more modest 表示与另一组数据相比增幅更小。'],
+  ['general:task1', 't1-extremes', 'before surging to a peak of', '随后猛增至峰值', 'The proportion increased gradually before surging to a peak of 42% in 2010.', 'surge 表示快速、显著上升；平缓增长时不要使用。'],
+  ['general:task1', 't1-trend', 'It subsequently fell to...', '随后下降至……', 'The figure peaked at 35% in 2005. It subsequently fell to 28% by 2015.', 'It 必须清楚指代前句的数据；fell to 后接终点数值。'],
+  ['general:task1', 't1-trend', 'After a slight decline...', '小幅下降之后……', 'After a slight decline in 2000, the figure recovered to 50%.', 'After a slight decline 作句首状语，后面通常加逗号。'],
 ]
 
 export const extendedStarterPhrases: WritingPhrase[] = examples.map(([scope, category, text, meaning, example, note], index) => ({
