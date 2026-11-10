@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { phraseTags } from '../lib/writingNotebook'
 import { WRITING_PHRASES_KEY, loadWritingPhrases, mergeWritingBackup, parseWritingBackup, writingCategories, writingChartTypes, writingQuestionTypes, writingTopics } from '../lib/writingPhrases'
 import type { WritingChartType, WritingPhrase, WritingPhraseState, WritingQuestionType, WritingTask, WritingTopic } from '../lib/writingPhrases'
 
+const props = defineProps<{ externalSearch?: string; externalTag?: string; embedded?: boolean }>()
+const emit = defineEmits<{ (event: 'change', state: WritingPhraseState): void }>()
 const state = ref<WritingPhraseState>(loadWritingPhrases())
 const selectedTask = ref<WritingTask>('task1')
 const selectedCategory = ref('all')
@@ -45,8 +48,10 @@ function matchesDimension<T extends string>(tags: T[] | undefined, selection: T 
 }
 
 const visiblePhrases = computed(() => {
-  const term = search.value.trim().toLocaleLowerCase()
+  const term = (props.externalSearch === undefined ? search.value : props.externalSearch).trim().toLocaleLowerCase()
   return currentPhrases.value.filter((item) => {
+    if (props.externalTag && props.externalTag !== 'all' && !phraseTags(item).includes(props.externalTag))
+      return false
     if (selectedCategory.value !== 'all' && item.category !== selectedCategory.value)
       return false
     if (item.task === 'task1' && !matchesDimension(item.chartTypes, selectedChartType.value))
@@ -72,6 +77,31 @@ function selectTask(task: WritingTask) {
   showForm.value = false
 }
 
+watch(() => props.externalTag, (tag) => {
+  if (tag === undefined)
+    return
+  selectedCategory.value = 'all'
+  selectedChartType.value = 'all'
+  selectedTopic.value = 'all'
+  selectedQuestionType.value = 'all'
+  if (tag === 'all')
+    return
+  const [kind, value] = tag.split(':')
+  const task: WritingTask = kind === 'topic' || kind === 'question' || (kind === 'category' && value.startsWith('t2-')) || value === 'task2'
+    ? 'task2'
+    : 'task1'
+  if (selectedTask.value !== task)
+    selectTask(task)
+  if (kind === 'category')
+    selectedCategory.value = value
+  if (kind === 'chart')
+    selectedChartType.value = value as WritingChartType
+  if (kind === 'topic')
+    selectedTopic.value = value as WritingTopic
+  if (kind === 'question')
+    selectedQuestionType.value = value as WritingQuestionType
+}, { immediate: true })
+
 watch(() => form.task, () => {
   if (!formCategories.value.some(item => item.id === form.category))
     form.category = formCategories.value[0].id
@@ -87,6 +117,7 @@ watch(() => form.task, () => {
 function saveState(updated: WritingPhraseState) {
   state.value = updated
   localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify(updated))
+  emit('change', updated)
 }
 
 function resetForm(task: WritingTask = selectedTask.value) {
@@ -339,6 +370,7 @@ async function importBackup(event: Event) {
 
     <div class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto]">
       <input
+        v-if="externalSearch === undefined"
         v-model="search"
         aria-label="搜索写作短语"
         type="search"
@@ -497,7 +529,7 @@ async function importBackup(event: Event) {
       </article>
     </div>
 
-    <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-5 dark:border-gray-700">
+    <div v-if="!embedded" class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-5 dark:border-gray-700">
       <p class="text-sm text-gray-500 dark:text-gray-400">记录仅保存在当前浏览器。换设备前请导出 JSON 备份。</p>
       <div class="flex flex-wrap gap-2">
         <button type="button" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600" @click="exportBackup">导出 JSON 备份</button>

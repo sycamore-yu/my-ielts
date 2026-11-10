@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import WritingPhraseBook from '../../components/WritingPhraseBook.vue'
+import WritingNotebook from '../../components/WritingNotebook.vue'
 import sentences from './100sentences'
 
 const activeView = ref<'phrases' | 'sentences'>('phrases')
@@ -17,7 +17,7 @@ const activeView = ref<'phrases' | 'sentences'>('phrases')
           :class="activeView === 'phrases' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-300'"
           @click="activeView = 'phrases'"
         >
-          写作短语库
+          写作笔记（表达 / 观点 / 错误）
         </button>
         <button
           type="button"
@@ -29,7 +29,7 @@ const activeView = ref<'phrases' | 'sentences'>('phrases')
         </button>
       </nav>
 
-      <WritingPhraseBook v-if="activeView === 'phrases'" />
+      <WritingNotebook v-if="activeView === 'phrases'" />
 
       <div v-else class="items-center justify-between lg:flex ">
         <div class="mb-4 lg:mb-0">
