@@ -3,7 +3,7 @@ import type { WritingChartType, WritingPhrase, WritingQuestionType, WritingTopic
 // New expressions and example sentences are original teaching examples.
 // Simon's publicly available approach informs the categorisation and usage
 // notes; none of these are presented as quotations from his model essays.
-type Scope = `chart:${WritingChartType}` | `topic:${WritingTopic}` | `question:${WritingQuestionType}` | 'general:task1'
+type Scope = `chart:${WritingChartType}` | `topic:${WritingTopic}` | `question:${WritingQuestionType}` | 'general:task1' | 'general:task2'
 type Row = [Scope, string, string, string, string, string?]
 
 const examples: Row[] = [
@@ -172,6 +172,9 @@ const examples: Row[] = [
   ['general:task1', 't1-size', '... ranked last in ...', '……在……方面排最后', 'Rail transport ranked last in freight volume in 2011.', '比较同一时点或期间、同一指标下的类别排名。'],
   ['general:task1', 't1-share', '... accounted for the smallest share of ...', '……占……的比例最小', 'Rail accounted for the smallest share of total freight transport in 2011.', '仅用于构成比例；若图表给的是绝对量，优先使用 recorded the lowest volume。'],
   ['general:task1', 't1-size', '... remained below the other two ...', '……始终低于另外两项', 'Rail freight volumes remained below those of the other two modes throughout the period.', '比较同一指标，且 throughout 要求全程均低于另外两项。'],
+
+  // Task 2 — the example template from the supplied writing notes.
+  ['general:task2', 't2-example', 'A good example can be found in [SW], where ...', '一个例子可以在……找到，在那里……', 'A good example can be found in vocational colleges, where students combine academic study with practical training.', '[SW] 是原笔记中的占位符，实际写作须替换为具体地点或机构。where 要有明确的地点先行词。避免编造无法核实的真实案例。'],
 ]
 
 export const extendedStarterPhrases: WritingPhrase[] = examples.map(([scope, category, text, meaning, example, note], index) => ({

@@ -36,7 +36,7 @@ describe('IELTS writing phrase library', () => {
       ['After a slight decline...', '小幅下降之后……', 't1-trend'],
       ['By contrast, ...', '相比之下，……', 't1-compare'],
     ]
-    expect(allStarterPhrases).toHaveLength(171)
+    expect(allStarterPhrases).toHaveLength(172)
     for (const [text, meaning, category] of requested) {
       const matches = allStarterPhrases.filter(entry => entry.text === text)
       expect(matches).toHaveLength(1)
@@ -57,14 +57,14 @@ describe('IELTS writing phrase library', () => {
     localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(previous.map(item => item.id)))
 
     const updated = loadWritingPhrases()
-    expect(updated.phrases).toHaveLength(170)
+    expect(updated.phrases).toHaveLength(171)
     expect(updated.phrases.some(item => item.id === 'reference-91')).toBe(true)
     expect(updated.phrases.some(item => item.id === 'reference-97')).toBe(true)
     expect(updated.phrases.some(item => item.id === 'reference-120')).toBe(true)
     expect(updated.phrases.some(item => item.id === 'reference-2')).toBe(false)
     expect(updated.phrases.find(item => item.id === 'starter-29')?.meaning).toBe('我的个性化释义')
     expect(updated.favorites).toEqual(['starter-29'])
-    expect(loadWritingPhrases().phrases).toHaveLength(170)
+    expect(loadWritingPhrases().phrases).toHaveLength(171)
     expect(localStorage.getItem(WRITING_STARTER_IDS_KEY)).toContain('reference-97')
   })
 
@@ -116,14 +116,37 @@ describe('IELTS writing phrase library', () => {
     localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(old.map(item => item.id)))
 
     const upgraded = loadWritingPhrases()
-    expect(upgraded.phrases).toHaveLength(170)
+    expect(upgraded.phrases).toHaveLength(171)
     expect(upgraded.phrases.find(item => item.id === 'reference-97')?.note).toBe('我自己补充的备注')
     expect(upgraded.phrases.some(item => item.id === 'starter-2')).toBe(false)
     expect(upgraded.favorites).toEqual(['reference-97'])
     expect(upgraded.phrases.some(item => item.id === 'reference-98')).toBe(true)
     expect(upgraded.phrases.some(item => item.id === 'reference-120')).toBe(true)
-    expect(loadWritingPhrases().phrases).toHaveLength(170)
+    expect(loadWritingPhrases().phrases).toHaveLength(171)
     expect(localStorage.getItem(WRITING_STARTER_IDS_KEY)).toContain('reference-120')
+  })
+
+  it('stores the supplied Task 2 example template without duplicating For example', () => {
+    const newPhrase = allStarterPhrases.filter(item => item.text === 'A good example can be found in [SW], where ...')
+    const existingPhrase = allStarterPhrases.filter(item => item.text === 'For example, ...')
+    expect(newPhrase).toHaveLength(1)
+    expect(newPhrase[0]).toMatchObject({
+      id: 'reference-121',
+      task: 'task2',
+      category: 't2-example',
+    })
+    expect(newPhrase[0].note).toContain('[SW]')
+    expect(newPhrase[0].note).toContain('where')
+    expect(existingPhrase).toHaveLength(1)
+    expect(existingPhrase[0].category).toBe('t2-example')
+
+    const previous = allStarterPhrases.filter(item => item.id !== 'reference-121')
+    localStorage.setItem(WRITING_PHRASES_KEY, JSON.stringify({ phrases: previous, favorites: ['starter-43'] }))
+    localStorage.setItem(WRITING_STARTER_IDS_KEY, JSON.stringify(previous.map(item => item.id)))
+    const upgraded = loadWritingPhrases()
+    expect(upgraded.phrases).toHaveLength(172)
+    expect(upgraded.favorites).toEqual(['starter-43'])
+    expect(loadWritingPhrases().phrases).toHaveLength(172)
   })
 
   it('saves custom phrases, category edits, and favorites across remounts', async () => {
