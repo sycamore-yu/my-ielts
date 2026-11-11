@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { PERSONAL_CHAPTER, personalEntries } from '../../lib/personalVocabulary'
 import { TYPING_FAMILIAR_KEY, addFamiliarWord, clearFamiliarChapter, isFamiliarWord, loadFamiliarWords } from '../../lib/typingFamiliar'
+import { LISTENING_CHAPTER, STUDY_CHAPTERS, checkSpelling, getStudyWords } from '../../lib/typingSources'
 import type { FamiliarWords } from '../../lib/typingFamiliar'
+import type { TypingWord } from '../../lib/typingSources'
 import vocabulary from './vocabulary'
 
 const CHAPTER_KEY = 'vocabulary_typing_chapter'
-const chapters = [...Object.keys(vocabulary), PERSONAL_CHAPTER]
-const selectedChapter = ref(localStorage.getItem(CHAPTER_KEY) || chapters[0])
+const MODE_KEY = 'vocabulary_typing_mode'
+const chapters = [...Object.keys(vocabulary), ...STUDY_CHAPTERS, PERSONAL_CHAPTER]
+const savedChapter = localStorage.getItem(CHAPTER_KEY)
+const selectedChapter = ref(savedChapter && chapters.includes(savedChapter) ? savedChapter : chapters[0])
+const mode = ref<'typing' | 'dictation'>(localStorage.getItem(MODE_KEY) === 'dictation' ? 'dictation' : 'typing')
 
 const currentWordIndex = ref(0)
 const userInput = ref('')
+const spellingResult = ref<'correct' | 'incorrect' | null>(null)
+const checkedCount = ref(0)
+const correctCount = ref(0)
 const startTime = ref<number | null>(null)
 const wpm = ref(0)
 const accuracy = ref(100)
@@ -17,16 +25,12 @@ const isFinished = ref(false)
 const typingInput = ref<HTMLInputElement | null>(null)
 const familiarWords = ref<FamiliarWords>(loadFamiliarWords())
 
-interface TypingWord {
-  word: string[]
-  meaning: string
-  example: string
-  pos: string
-}
-
 const chapterWords = computed<TypingWord[]>(() => {
   if (selectedChapter.value === PERSONAL_CHAPTER)
     return personalEntries.value.map(entry => ({ word: [entry.word], meaning: entry.meaning, example: entry.example, pos: '' }))
+  const studyWords = getStudyWords(selectedChapter.value)
+  if (studyWords)
+    return studyWords
   const chapter = (vocabulary as Record<string, { words: TypingWord[][] }>)[selectedChapter.value]
   return chapter?.words.flat() || []
 })
@@ -42,6 +46,10 @@ watch(selectedChapter, (newVal) => {
   localStorage.setItem(CHAPTER_KEY, newVal)
   reset()
 })
+watch(mode, (newVal) => {
+  localStorage.setItem(MODE_KEY, newVal)
+  reset()
+})
 
 let advanceTimer: number | null = null
 function clearAdvanceTimer() {
@@ -55,6 +63,9 @@ function reset() {
   clearAdvanceTimer()
   currentWordIndex.value = 0
   userInput.value = ''
+  spellingResult.value = null
+  checkedCount.value = 0
+  correctCount.value = 0
   startTime.value = null
   wpm.value = 0
   accuracy.value = 100
@@ -79,6 +90,7 @@ function markCurrentFamiliar() {
   // Filtering can also remove an earlier duplicate of the current word.
   currentWordIndex.value -= removedBefore
   userInput.value = ''
+  spellingResult.value = null
   startTime.value = null
   if (currentWordIndex.value >= words.value.length)
     isFinished.value = true
@@ -96,33 +108,53 @@ function restoreChapter() {
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter' && !event.isComposing) {
     event.preventDefault()
-    markCurrentFamiliar()
+    if (mode.value === 'dictation' && event.ctrlKey)
+      checkCurrentSpelling()
+    else
+      markCurrentFamiliar()
   }
 }
 
 let audio = null as HTMLAudioElement | null
+function stopAudio() {
+  if (audio) {
+    audio.pause()
+    audio.currentTime = 0
+    audio = null
+  }
+  window.speechSynthesis?.cancel()
+}
+
 function playAudio() {
   const category = selectedChapter.value
   const word = currentWord.value
+  stopAudio()
   if (!word)
     return
-  if (category === PERSONAL_CHAPTER) {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
+  if (category === PERSONAL_CHAPTER || (STUDY_CHAPTERS.includes(category) && category !== LISTENING_CHAPTER)) {
+    if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
       const utterance = new SpeechSynthesisUtterance(word)
       utterance.lang = 'en-GB'
       window.speechSynthesis.speak(utterance)
     }
     return
   }
-  const audioPath = `vocabulary/audio/${category}/${word}.mp3`
-  if (audio) {
-    audio.pause()
-    audio.currentTime = 0
-  }
+  const audioPath = category === LISTENING_CHAPTER
+    ? `179_audios/${encodeURIComponent(word)}.mp3`
+    : `vocabulary/audio/${category}/${word}.mp3`
   audio = document.createElement('audio')
   audio.src = audioPath
   audio.play().catch(() => {})
+}
+
+function checkCurrentSpelling() {
+  if (mode.value !== 'dictation' || spellingResult.value || !userInput.value.trim() || isFinished.value)
+    return
+  const correct = checkSpelling(userInput.value, currentWord.value)
+  spellingResult.value = correct ? 'correct' : 'incorrect'
+  checkedCount.value++
+  if (correct)
+    correctCount.value++
 }
 
 // Normalize whitespace: replace non-breaking spaces and other unicode spaces with regular space
@@ -156,7 +188,7 @@ function handleInput(e: Event) {
     wpm.value = Math.round((input.length / 5) / timeElapsed)
 
   // Check if finished
-  if (input === currentWord.value && !advanceTimer) {
+  if (mode.value === 'typing' && input === currentWord.value && !advanceTimer) {
     advanceTimer = window.setTimeout(() => {
       advanceTimer = null
       nextWord()
@@ -165,11 +197,14 @@ function handleInput(e: Event) {
 }
 
 function nextWord() {
+  clearAdvanceTimer()
+  spellingResult.value = null
   if (currentWordIndex.value < words.value.length - 1) {
     currentWordIndex.value++
     userInput.value = ''
     startTime.value = null
     playAudio()
+    nextTick(() => typingInput.value?.focus())
   }
   else {
     isFinished.value = true
@@ -179,7 +214,7 @@ function nextWord() {
 onMounted(reset)
 onUnmounted(() => {
   clearAdvanceTimer()
-  window.speechSynthesis?.cancel()
+  stopAudio()
 })
 </script>
 
@@ -190,11 +225,12 @@ onUnmounted(() => {
       <div class="flex justify-between items-center mb-8">
         <div>
           <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white">单词打字练习</h1>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">照着背景单词输入，提升你的速度</p>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">跟打练速度，默写练拼写；阅读和听力考点词均可使用</p>
         </div>
         <select
           v-model="selectedChapter"
-          class="block w-48 border border-gray-300 rounded-lg bg-white p-2.5 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-blue-500"
+          aria-label="选择单词词库"
+          class="block w-56 border border-gray-300 rounded-lg bg-white p-2.5 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-blue-500"
         >
           <option
             v-for="c in chapters"
@@ -202,6 +238,31 @@ onUnmounted(() => {
             :value="c"
           >{{ c }}</option>
         </select>
+      </div>
+
+      <div class="mb-6 flex flex-wrap items-center gap-3">
+        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">练习模式：</span>
+        <button
+          type="button"
+          :aria-pressed="mode === 'typing'"
+          class="rounded-lg border px-4 py-2 text-sm font-medium"
+          :class="mode === 'typing' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'"
+          @click="mode = 'typing'"
+        >
+          跟打
+        </button>
+        <button
+          type="button"
+          :aria-pressed="mode === 'dictation'"
+          class="rounded-lg border px-4 py-2 text-sm font-medium"
+          :class="mode === 'dictation' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'"
+          @click="mode = 'dictation'"
+        >
+          默写
+        </button>
+        <span class="text-xs text-gray-500 dark:text-gray-400">
+          {{ mode === 'dictation' ? '隐藏英文，根据词义或发音拼写；答案检查后显示' : '显示英文，正确输入后自动进入下一词' }}
+        </span>
       </div>
 
       <div v-if="selectedChapter === PERSONAL_CHAPTER" class="mb-5 text-sm text-blue-600">
@@ -229,14 +290,14 @@ onUnmounted(() => {
           <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">准确率</div>
           <div
             class="text-2xl font-bold"
-            :class="accuracy < 90 ? 'text-red-500' : 'text-green-500'"
-          >{{ accuracy }}%</div>
+            :class="mode === 'typing' && accuracy < 90 || mode === 'dictation' && checkedCount && correctCount < checkedCount ? 'text-red-500' : 'text-green-500'"
+          >{{ mode === 'typing' ? `${accuracy}%` : checkedCount ? `${Math.round(correctCount / checkedCount * 100)}%` : '—' }}</div>
         </div>
         <div
           class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center"
         >
-          <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">WPM (速度)</div>
-          <div class="text-2xl font-bold text-blue-500">{{ wpm }}</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">{{ mode === 'typing' ? 'WPM (速度)' : '本轮正确 / 已检查' }}</div>
+          <div class="text-2xl font-bold text-blue-500">{{ mode === 'typing' ? wpm : `${correctCount} / ${checkedCount}` }}</div>
         </div>
         <div
           class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center"
@@ -251,7 +312,7 @@ onUnmounted(() => {
         class="relative bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-80 flex flex-col items-center justify-center overflow-hidden"
       >
         <!-- Container for aligned layers -->
-        <div class="font-mono text-2xl sm:text-4xl font-black text-center break-words whitespace-pre-wrap mb-8 leading-relaxed">
+        <div v-if="mode === 'typing'" class="font-mono text-2xl sm:text-4xl font-black text-center break-words whitespace-pre-wrap mb-8 leading-relaxed">
           <span v-for="(char, index) in currentWord" :key="index" :class="{
             'text-green-500': userInput.charAt(index) === char,
             'text-red-500': userInput.charAt(index) !== '' && userInput.charAt(index) !== char,
@@ -261,6 +322,7 @@ onUnmounted(() => {
 
         <!-- Invisible Input covering the whole area -->
         <input
+          v-if="mode === 'typing'"
           ref="typingInput"
           type="text"
           class="absolute inset-0 opacity-0 w-full h-full cursor-default caret-transparent"
@@ -274,6 +336,28 @@ onUnmounted(() => {
           @keydown="handleKeydown"
           :disabled="isFinished || !words.length"
         />
+        <div v-else class="w-full max-w-md text-center mb-6">
+          <div class="mb-3 text-sm text-gray-400 dark:text-gray-500">英文已隐藏</div>
+          <input
+            ref="typingInput"
+            v-model="userInput"
+            type="text"
+            aria-label="默写英文单词"
+            class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-center font-mono text-xl font-semibold text-gray-900 outline-none focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            placeholder="根据词义或发音输入英文"
+            autofocus
+            autocapitalize="off"
+            autocorrect="off"
+            autocomplete="off"
+            spellcheck="false"
+            :disabled="isFinished || !words.length || spellingResult !== null"
+            @input="handleInput"
+            @keydown="handleKeydown"
+          >
+          <div v-if="spellingResult" role="status" class="mt-3 rounded-lg p-3 text-sm font-medium" :class="spellingResult === 'correct' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'">
+            {{ spellingResult === 'correct' ? '拼写正确' : `拼写错误，正确答案：${currentWord}` }}
+          </div>
+        </div>
 
         <!-- Meaning & Example (Hint) -->
         <div class="w-full text-center border-t border-gray-100 dark:border-gray-700 pt-6">
@@ -285,7 +369,7 @@ onUnmounted(() => {
             </span>
             {{ currentWordData?.meaning }}
           </div>
-          <p class="text-gray-500 dark:text-gray-400 italic text-sm sm:text-base max-w-xl mx-auto">
+          <p v-if="mode === 'typing' || spellingResult !== null" class="text-gray-500 dark:text-gray-400 italic text-sm sm:text-base max-w-xl mx-auto">
             {{ currentWordData?.example }}
           </p>
         </div>
@@ -293,12 +377,35 @@ onUnmounted(() => {
         <!-- Audio trigger hint -->
         <div class="absolute top-4 right-4">
           <button
+            type="button"
+            title="重播发音"
+            aria-label="重播发音"
             @click="playAudio"
             class="p-2 text-gray-400 hover:text-blue-500 transition-colors"
           >
             <i class="i-ph-speaker-high-bold text-xl block"></i>
           </button>
         </div>
+      </div>
+
+      <div v-if="mode === 'dictation' && words.length && !isFinished" class="mt-4 flex flex-wrap justify-center gap-3">
+        <button
+          v-if="spellingResult === null"
+          type="button"
+          class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-40"
+          :disabled="!userInput.trim()"
+          @click="checkCurrentSpelling"
+        >
+          检查拼写（Ctrl + Enter）
+        </button>
+        <button
+          v-else
+          type="button"
+          class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white"
+          @click="nextWord"
+        >
+          下一词
+        </button>
       </div>
 
       <div class="mt-4 text-center">
@@ -327,7 +434,9 @@ onUnmounted(() => {
 
       <!-- Instructions -->
       <div class="mt-8 text-center text-gray-400 text-sm">
-        提示：直接开始输入，输入正确后自动进入下一词；按 Enter 将当前词标记熟悉，后续练习不再出现。
+        {{ mode === 'typing'
+          ? '提示：直接开始输入，正确后自动进入下一词；按 Enter 将当前词标记熟悉。'
+          : '提示：根据中文释义或发音默写，按 Ctrl + Enter 检查；按 Enter 标记熟悉。检查时忽略大小写，但不忽略拼写与连字符。' }}
       </div>
     </div>
   </div>

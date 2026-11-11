@@ -1,9 +1,15 @@
 <script setup>
+import { READING_CHAPTER_PREFIX } from '../../lib/typingSources'
 import words from './reading538words'
 
 const ws = reactive(words)
 
 const keyword = ref('')
+
+function prepareSpelling(title) {
+  localStorage.setItem('vocabulary_typing_chapter', `${READING_CHAPTER_PREFIX}${title}`)
+  localStorage.setItem('vocabulary_typing_mode', 'dictation')
+}
 
 let audio = null
 function play(word) {
@@ -41,6 +47,13 @@ function play(word) {
               >
                 练习
               </button>
+              <router-link
+                to="/vocabulary/typing"
+                class="ml-2 rounded-lg border border-blue-600 px-4 py-2.5 text-sm font-medium text-blue-700 dark:text-blue-400"
+                @click="prepareSpelling(cat.title)"
+              >
+                拼写练习
+              </router-link>
               <!-- <input type="text" name="email" class="ml-3 block w-full border border-gray-300 rounded-lg bg-gray-50 p-2.5 text-gray-900 dark:border-gray-600 focus:border-primary-500 dark:bg-gray-700 sm:text-sm dark:text-white focus:ring-primary-500 dark:focus:border-primary-500 dark:focus:ring-primary-500 dark:placeholder-gray-400" placeholder="关键词"> -->
               <div class="relative ml-2 flex-1">
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
