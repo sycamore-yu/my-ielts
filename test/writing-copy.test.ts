@@ -23,6 +23,10 @@ describe('writing copy practice', () => {
     for (const essay of writingCopyEssays) {
       expect(essayWordCount(essay), `${essay.id} length`).toBeGreaterThanOrEqual(essay.task === 'task2' ? 250 : 150)
       expect(essay.paragraphs.length).toBeGreaterThanOrEqual(3)
+      expect(essay.id).toBe(`cam${essay.book}-test${essay.test}-${essay.task}`)
+      expect(essay.questionImage).toMatch(/^https:\/\//)
+      expect(essay.questionSource).toMatch(/^https:\/\//)
+      expect(essay.imageCredit.length).toBeGreaterThan(5)
       for (const sentence of essaySentences(essay)) {
         expect(sentence[0].length).toBeGreaterThan(20)
         expect(sentence[1].length).toBeGreaterThan(15)
@@ -64,5 +68,33 @@ describe('writing copy practice', () => {
     await reopened.get('button[aria-pressed="false"]').trigger('click')
     expect(reopened.text()).toContain('已完成 1 /')
     reopened.unmount()
+  })
+
+  it('displays the genuine task image instead of a simulated text prompt and links to the source', async () => {
+    const wrapper = mount(WritingCopyPractice)
+    const original = writingCopyEssays[0]
+    expect(wrapper.text()).toContain(`Cambridge IELTS ${original.book}`)
+    expect(wrapper.get('img').attributes('src')).toBe(original.questionImage)
+    expect(wrapper.get('img').attributes('alt')).toBe(original.prompt)
+    expect(wrapper.find('a[href="https://zim.vn/cam-16-test-3-writing-task-2"]').exists()).toBe(true)
+
+    await wrapper.get('button[aria-pressed="false"]').trigger('click')
+    const chart = writingCopyEssays.find(essay => essay.task === 'task1')!
+    expect(wrapper.get('img').attributes('src')).toBe(chart.questionImage)
+    expect(wrapper.text()).toContain(`Cambridge IELTS ${chart.book}`)
+    expect(wrapper.text()).not.toContain('模拟图表数据')
+    wrapper.unmount()
+  })
+
+  it('exposes the original question link if an external image cannot be displayed', async () => {
+    const wrapper = mount(WritingCopyPractice)
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.text()).toContain('外部题图暂时无法加载')
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.get(`a[href="${writingCopyEssays[0].questionSource}"]`).exists()).toBe(true)
+
+    await wrapper.get('select[aria-label="选择范文题型"]').setValue(writingCopyEssays[1].id)
+    expect(wrapper.get('img').attributes('src')).toBe(writingCopyEssays[1].questionImage)
+    wrapper.unmount()
   })
 })

@@ -31,6 +31,7 @@ const saved = ref(loadProgress())
 const sentenceIndex = ref(0)
 const typed = ref('')
 const textInput = ref<HTMLTextAreaElement | null>(null)
+const imageUnavailable = ref(false)
 
 const essaysForTask = computed(() => writingCopyEssays.filter(item => item.task === task.value))
 const essay = computed(() => writingCopyEssays.find(item => item.id === selectedEssayId.value) || writingCopyEssays[0])
@@ -99,7 +100,10 @@ function resetPractice() {
   nextTick(() => textInput.value?.focus())
 }
 
-watch(selectedEssayId, restore)
+watch(selectedEssayId, () => {
+  imageUnavailable.value = false
+  restore()
+})
 watch(typed, (value) => {
   save()
   if (!finished.value && value && value === currentSentence.value?.[0]) {
@@ -123,7 +127,7 @@ onUnmounted(clearAdvanceTimer)
           范文抄写
         </h2>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          左侧对照全文，右侧逐句跟打；每句提供同义替换与语法提示。原创模拟范文，非官方真题。
+          使用剑桥雅思真题练习：左侧查看原题图示和原创范文，右侧逐句跟打，并学习同义替换与语法提示。
         </p>
       </div>
       <div class="flex flex-wrap gap-2" aria-label="选择作文任务">
@@ -159,19 +163,20 @@ onUnmounted(clearAdvanceTimer)
     <div class="grid gap-5 lg:grid-cols-2">
       <div class="min-w-0 border border-gray-200 rounded-xl bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
         <h3 class="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-          题目
+          题目截图
         </h3>
-        <p class="mb-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-          {{ essay.prompt }}
+        <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+          Cambridge IELTS {{ essay.book }} · Test {{ essay.test }} · Writing {{ essay.task === 'task2' ? 'Task 2' : 'Task 1' }}
         </p>
-        <details v-if="essay.sourceData" class="mb-4 rounded-lg bg-white p-3 text-sm dark:bg-gray-800">
-          <summary class="cursor-pointer font-medium">
-            模拟图表数据 / 地图或流程说明
-          </summary>
-          <p class="mt-3 whitespace-pre-line text-gray-600 dark:text-gray-300">
-            {{ essay.sourceData }}
-          </p>
-        </details>
+        <a v-if="!imageUnavailable" :href="essay.questionImage" target="_blank" rel="noopener noreferrer" class="mb-2 block border border-gray-200 rounded-lg bg-white p-1 dark:border-gray-700" aria-label="打开题目大图">
+          <img :src="essay.questionImage" :alt="essay.prompt" referrerpolicy="no-referrer" loading="lazy" class="h-auto w-full rounded" @error="imageUnavailable = true">
+        </a>
+        <p v-else class="mb-2 border border-amber-200 rounded-lg p-3 text-sm dark:border-amber-800" role="alert">
+          外部题图暂时无法加载。请通过下方来源链接查看原题。
+        </p>
+        <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+          图片来源：<a :href="essay.questionSource" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline dark:text-blue-400">{{ essay.imageCredit }} · 查看原题来源</a>。第三方题图可能经过排版或裁剪；范文及提示为本站原创。
+        </p>
         <h3 class="mb-3 border-t border-gray-200 pt-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200">
           范文全文（灰色为待输入）
         </h3>
