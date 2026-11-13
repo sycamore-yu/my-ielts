@@ -51,6 +51,26 @@ describe('writing copy practice', () => {
     wrapper.unmount()
   })
 
+  it('keeps the active sentence by the input and the full essay in the right panel', async () => {
+    const wrapper = mount(WritingCopyPractice)
+    const [first, second] = essaySentences(writingCopyEssays[0])
+    const input = wrapper.get('textarea[aria-label="逐句抄写输入"]')
+    const preview = wrapper.get('[aria-label="当前句子"]')
+    const essay = wrapper.get('aside[aria-label="范文全文"]')
+
+    expect(preview.text()).toContain(first[0])
+    expect(essay.text()).toContain(first[0])
+    expect(essay.text()).toContain(`${first[0]} ${second[0]}`)
+    expect(essay.element.compareDocumentPosition(input.element) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(wrapper.get('details').attributes()).toHaveProperty('open')
+
+    await input.setValue(first[0])
+    await vi.advanceTimersByTimeAsync(400)
+    expect(preview.text()).toContain(second[0])
+    expect(essay.get('[data-copy-active]').text()).toBe(second[0])
+    wrapper.unmount()
+  })
+
   it('keeps each essay progress independently when switching Task 1 and Task 2 or remounting', async () => {
     const wrapper = mount(WritingCopyPractice)
     const first = essaySentences(writingCopyEssays[0])[0][0]

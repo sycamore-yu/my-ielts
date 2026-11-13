@@ -31,6 +31,7 @@ const saved = ref(loadProgress())
 const sentenceIndex = ref(0)
 const typed = ref('')
 const textInput = ref<HTMLTextAreaElement | null>(null)
+const essayScroll = ref<HTMLElement | null>(null)
 const imageUnavailable = ref(false)
 
 const essaysForTask = computed(() => writingCopyEssays.filter(item => item.task === task.value))
@@ -64,12 +65,26 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saved.value))
 }
 
+function scrollToActiveSentence() {
+  const container = essayScroll.value
+  const active = container?.querySelector<HTMLElement>('[data-copy-active]')
+  if (!container || !active)
+    return
+
+  const top = active.getBoundingClientRect().top - container.getBoundingClientRect().top
+  if (top < 16 || top + active.getBoundingClientRect().height > container.clientHeight - 16)
+    container.scrollTop += top - container.clientHeight / 4
+}
+
 function restore() {
   clearAdvanceTimer()
   const previous = saved.value[selectedEssayId.value]
   sentenceIndex.value = previous && previous.index <= sentences.value.length ? previous.index : 0
   typed.value = finished.value ? '' : previous?.input?.slice(0, 500) || ''
-  nextTick(() => textInput.value?.focus())
+  nextTick(() => {
+    scrollToActiveSentence()
+    textInput.value?.focus()
+  })
 }
 
 function setTask(next: WritingTask) {
@@ -87,7 +102,7 @@ function advance() {
   typed.value = ''
   save()
   nextTick(() => {
-    document.querySelector<HTMLElement>('[data-copy-active]')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    scrollToActiveSentence()
     textInput.value?.focus()
   })
 }
@@ -97,7 +112,10 @@ function resetPractice() {
   sentenceIndex.value = 0
   typed.value = ''
   save()
-  nextTick(() => textInput.value?.focus())
+  nextTick(() => {
+    scrollToActiveSentence()
+    textInput.value?.focus()
+  })
 }
 
 watch(selectedEssayId, () => {
@@ -127,7 +145,7 @@ onUnmounted(clearAdvanceTimer)
           范文抄写
         </h2>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          使用剑桥雅思真题练习：左侧查看原题图示和原创范文，右侧逐句跟打，并学习同义替换与语法提示。
+          使用剑桥雅思真题练习：对照当前句子逐句跟打，右侧查看完整范文，并学习同义替换与语法提示。
         </p>
       </div>
       <div class="flex flex-wrap gap-2" aria-label="选择作文任务">
@@ -160,38 +178,25 @@ onUnmounted(clearAdvanceTimer)
       </button>
     </div>
 
-    <div class="grid gap-5 lg:grid-cols-2">
-      <div class="min-w-0 border border-gray-200 rounded-xl bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
-        <h3 class="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-          题目截图
-        </h3>
-        <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-          Cambridge IELTS {{ essay.book }} · Test {{ essay.test }} · Writing {{ essay.task === 'task2' ? 'Task 2' : 'Task 1' }}
-        </p>
-        <a v-if="!imageUnavailable" :href="essay.questionImage" target="_blank" rel="noopener noreferrer" class="mb-2 block border border-gray-200 rounded-lg bg-white p-1 dark:border-gray-700" aria-label="打开题目大图">
-          <img :src="essay.questionImage" :alt="essay.prompt" referrerpolicy="no-referrer" loading="lazy" class="h-auto w-full rounded" @error="imageUnavailable = true">
+    <details open class="mb-5 min-w-0 border border-gray-200 rounded-xl bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
+      <summary class="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-200">
+        题目截图 · Cambridge IELTS {{ essay.book }} · Test {{ essay.test }} · Writing {{ essay.task === 'task2' ? 'Task 2' : 'Task 1' }}
+        <span class="ml-2 font-normal text-gray-500 dark:text-gray-400">（点击展开或收起）</span>
+      </summary>
+      <div class="mt-4">
+        <a v-if="!imageUnavailable" :href="essay.questionImage" target="_blank" rel="noopener noreferrer" class="mb-2 block border border-gray-200 rounded-lg bg-white p-2 dark:border-gray-700" aria-label="打开题目大图">
+          <img :src="essay.questionImage" :alt="essay.prompt" referrerpolicy="no-referrer" loading="lazy" class="max-h-72 w-full rounded object-contain" @error="imageUnavailable = true">
         </a>
         <p v-else class="mb-2 border border-amber-200 rounded-lg p-3 text-sm dark:border-amber-800" role="alert">
           外部题图暂时无法加载。请通过下方来源链接查看原题。
         </p>
-        <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        <p class="text-xs text-gray-500 dark:text-gray-400">
           图片来源：<a :href="essay.questionSource" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline dark:text-blue-400">{{ essay.imageCredit }} · 查看原题来源</a>。第三方题图可能经过排版或裁剪；范文及提示为本站原创。
         </p>
-        <h3 class="mb-3 border-t border-gray-200 pt-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-          范文全文（灰色为待输入）
-        </h3>
-        <div class="max-h-[600px] overflow-y-auto pr-2 text-base leading-8" aria-label="范文全文">
-          <p v-for="(paragraph, p) in renderParagraphs" :key="p" class="mb-4 last:mb-0">
-            <template v-for="(part, s) in paragraph" :key="part.index">
-              <span v-if="part.index === sentenceIndex" data-copy-active class="rounded bg-blue-50/70 dark:bg-blue-900/20">
-                <span v-for="(char, i) in part.text" :key="i" :class="typed[i] === char ? 'text-green-600 dark:text-green-400' : typed[i] ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'">{{ char }}</span>
-              </span>
-              <span v-else :class="part.index < sentenceIndex ? 'text-green-700 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'">{{ part.text }}</span><span v-if="s < paragraph.length - 1" />
-            </template>
-          </p>
-        </div>
       </div>
+    </details>
 
+    <div class="grid items-start gap-5 lg:grid-cols-2">
       <div class="min-w-0 border border-gray-200 rounded-xl bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:p-5">
         <template v-if="!finished && currentSentence">
           <div class="mb-3 flex flex-wrap justify-between gap-2">
@@ -200,7 +205,15 @@ onUnmounted(clearAdvanceTimer)
             </h3>
             <span class="text-sm" :class="currentAccuracy < 90 ? 'text-red-600' : 'text-green-600'">当前准确率 {{ currentAccuracy }}%</span>
           </div>
-          <label for="copy-sentence-input" class="mb-2 block text-sm text-gray-600 dark:text-gray-300">请对照左侧灰色句子输入。完全一致后自动进入下一句。</label>
+          <div class="mb-4 border border-gray-200 rounded-lg bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-900" aria-label="当前句子">
+            <p class="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+              当前句子 · 灰色为待输入
+            </p>
+            <p class="break-words text-base leading-8">
+              <span v-for="(char, i) in currentSentence[0]" :key="i" :class="typed[i] === char ? 'text-green-600 dark:text-green-400' : typed[i] ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'">{{ char }}</span>
+            </p>
+          </div>
+          <label for="copy-sentence-input" class="mb-2 block text-sm text-gray-600 dark:text-gray-300">对照上方句子输入。完全一致后自动进入下一句。</label>
           <textarea
             id="copy-sentence-input"
             ref="textInput"
@@ -249,6 +262,21 @@ onUnmounted(clearAdvanceTimer)
           </button>
         </div>
       </div>
+      <aside class="min-w-0 border border-gray-200 rounded-xl bg-gray-50 p-4 lg:sticky lg:top-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5" aria-label="范文全文">
+        <h3 class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+          范文全文（灰色为待输入）
+        </h3>
+        <div ref="essayScroll" class="max-h-[560px] overflow-y-auto scroll-smooth pr-2 text-base leading-8" aria-label="范文正文" tabindex="0">
+          <p v-for="(paragraph, p) in renderParagraphs" :key="p" class="mb-4 last:mb-0">
+            <template v-for="(part, s) in paragraph" :key="part.index">
+              <span v-if="part.index === sentenceIndex" data-copy-active class="rounded bg-blue-50/70 dark:bg-blue-900/20">
+                <span v-for="(char, i) in part.text" :key="i" :class="typed[i] === char ? 'text-green-600 dark:text-green-400' : typed[i] ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'">{{ char }}</span>
+              </span>
+              <span v-else :class="part.index < sentenceIndex ? 'text-green-700 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'">{{ part.text }}</span><span v-if="s < paragraph.length - 1">{{ ' ' }}</span>
+            </template>
+          </p>
+        </div>
+      </aside>
     </div>
     <p class="mt-5 text-xs text-gray-500 dark:text-gray-400">
       每篇文章的完成句数和当前输入保存在本机浏览器中。切换题型不会清除其他文章的进度。
